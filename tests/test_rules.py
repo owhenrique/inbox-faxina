@@ -61,6 +61,12 @@ def test_matches_sender_and_domain() -> None:
     assert not matches({"domain": "other.example"}, message, NOW)
 
 
+def test_matches_senders_list() -> None:
+    message = make_message("1")
+    assert matches({"senders": ["a@x.example", "news@shop.example"]}, message, NOW)
+    assert not matches({"senders": ["a@x.example"]}, message, NOW)
+
+
 def test_matches_category() -> None:
     promo = make_message("1", subject="Grande oferta")
     plain = make_message("2", sender="ana@pessoa.example", subject="Oi")

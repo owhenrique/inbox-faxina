@@ -12,7 +12,7 @@ from email_cleanup.db import Message, add_rule, list_rules, succeeded_uids
 
 ACTIONS = ("manter", "arquivar", "lixeira", "apagar")
 KEEP_ACTION = "manter"
-FILTER_KEYS = ("sender", "domain", "category", "older_than_years", "min_size_mb")
+FILTER_KEYS = ("sender", "senders", "domain", "category", "older_than_years", "min_size_mb")
 CATEGORY_CHECKS = {"promocao": is_promotion, "notificacao": is_notification}
 
 
@@ -42,6 +42,7 @@ class Plan:
 def matches(rule_filter: Mapping[str, Any], message: Message, now: datetime) -> bool:
     checks = {
         "sender": lambda value: message.sender == value,
+        "senders": lambda value: message.sender in value,
         "domain": lambda value: message.domain == value,
         "category": lambda value: CATEGORY_CHECKS[value](message),
         "older_than_years": lambda value: is_older_than(message.internal_date, value, now),

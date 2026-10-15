@@ -12,6 +12,7 @@ from .catalog import catalog_messages
 from .config import ConfigError, database_path, load_settings
 from .db import connect
 from .imap import ImapClient, ImapError
+from .review import run_review
 
 
 class CatalogProgress:
@@ -61,12 +62,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="Re-baixar tudo desde o início, mesmo o que já está catalogado.",
     )
     catalog_parser.set_defaults(handler=run_catalog)
+    review_parser = subparsers.add_parser(
+        "review",
+        help="Revisar grupos por remetente e criar regras de limpeza (local).",
+        description=(
+            "Interface interativa: decide ações por grupo ou em massa e grava "
+            "regras no banco local, sem tocar na conta."
+        ),
+    )
+    review_parser.set_defaults(handler=run_review_command)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     return int(args.handler(args))
+
+
+def run_review_command(args: argparse.Namespace) -> int:
+    database = connect(database_path())
+    try:
+        return run_review(database, Console())
+    finally:
+        database.close()
 
 
 def run_catalog(args: argparse.Namespace) -> int:

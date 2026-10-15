@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 import unicodedata
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -51,6 +53,81 @@ NOTIFICATION_LOCAL_PART_TERMS = (
     "mailer-daemon",
 )
 
+SENSITIVE_REASONS = ("financeiro", "seguranca", "pessoal", "documento")
+
+FINANCIAL_TERMS = (
+    "fatura",
+    "boleto",
+    "extrato",
+    "cartao",
+    "pix",
+    "transferencia",
+    "saldo",
+    "imposto",
+    "receita federal",
+    "nota fiscal",
+    "fgts",
+    "banco",
+    "bank",
+    "nubank",
+    "itau",
+    "bradesco",
+    "santander",
+    "caixa economica",
+    "bancointer",
+    "mercado pago",
+    "mercadopago",
+    "paypal",
+    "invoice",
+    "payment",
+    "pagamento",
+)
+
+SECURITY_TERMS = (
+    "codigo de verificacao",
+    "verification code",
+    "redefin",
+    "reset your password",
+    "password reset",
+    "login",
+    "2fa",
+    "autenticacao",
+    "alerta de seguranca",
+    "security alert",
+    "confirme seu",
+)
+
+PERSONAL_DOMAINS = frozenset(
+    {
+        "gmail.com",
+        "googlemail.com",
+        "outlook.com",
+        "hotmail.com",
+        "live.com",
+        "msn.com",
+        "yahoo.com",
+        "yahoo.com.br",
+        "icloud.com",
+        "me.com",
+        "proton.me",
+        "protonmail.com",
+        "uol.com.br",
+        "bol.com.br",
+        "terra.com.br",
+    }
+)
+
+DOCUMENT_SUBJECT_TERMS = (
+    "contrato",
+    "recibo",
+    "comprovante",
+    "passagem",
+    "nota fiscal",
+    "apolice",
+    "declaracao",
+    "boarding",
+)
+
 
 @dataclass(frozen=True)
 class Group:
@@ -62,6 +139,8 @@ class Group:
     promo_count: int
     notification_count: int
     remainder: bool
+    sensitive_count: int = 0
+    sensitive_reasons: tuple[str, ...] = ()
 
 
 def fold(text: str) -> str:
@@ -82,6 +161,36 @@ def is_notification(message: Message) -> bool:
     return _matches(fold(message.subject), NOTIFICATION_SUBJECT_TERMS) or _matches(
         _local_part(message.sender), NOTIFICATION_LOCAL_PART_TERMS
     )
+
+
+def is_financial(message: Message) -> bool:
+    return _has_term(fold(f"{message.sender} {message.subject}"), FINANCIAL_TERMS)
+
+
+def is_security(message: Message) -> bool:
+    return _has_term(fold(message.subject), SECURITY_TERMS)
+
+
+def is_personal(message: Message) -> bool:
+    return message.domain.lower() in PERSONAL_DOMAINS and not _matches(
+        _local_part(message.sender), NOTIFICATION_LOCAL_PART_TERMS
+    )
+
+
+def is_document(message: Message) -> bool:
+    return message.has_attachment or _has_term(
+        fold(message.subject), DOCUMENT_SUBJECT_TERMS
+    )
+
+
+def sensitivity_reasons(message: Message) -> tuple[str, ...]:
+    checks = {
+        "financeiro": is_financial,
+        "seguranca": is_security,
+        "pessoal": is_personal,
+        "documento": is_document,
+    }
+    return tuple(reason for reason in SENSITIVE_REASONS if checks[reason](message))
 
 
 def is_older_than(internal_date: str, years: int, now: datetime) -> bool:
@@ -121,6 +230,7 @@ def build_groups(
 def _build_group(sender: str | None, messages: Sequence[Message], remainder: bool) -> Group:
     latest = max(messages, key=lambda message: message.internal_date)
     name = "diversos" if remainder else latest.sender_name
+    reasons_per_message = [sensitivity_reasons(message) for message in messages]
     return Group(
         sender=sender,
         name=name,
@@ -130,6 +240,12 @@ def _build_group(sender: str | None, messages: Sequence[Message], remainder: boo
         promo_count=sum(1 for message in messages if is_promotion(message)),
         notification_count=sum(1 for message in messages if is_notification(message)),
         remainder=remainder,
+        sensitive_count=sum(1 for reasons in reasons_per_message if reasons),
+        sensitive_reasons=tuple(
+            reason for reason, _ in Counter(
+                reason for reasons in reasons_per_message for reason in reasons
+            ).most_common()
+        ),
     )
 
 
@@ -139,3 +255,7 @@ def _local_part(sender: str) -> str:
 
 def _matches(text: str, terms: Sequence[str]) -> bool:
     return any(term in text for term in terms)
+
+
+def _has_term(text: str, terms: Sequence[str]) -> bool:
+    return any(re.search(rf"(?<!\w){re.escape(term)}", text) for term in terms)

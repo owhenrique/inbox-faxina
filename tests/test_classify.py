@@ -480,7 +480,11 @@ def test_sensitivity_reasons_ordered_and_empty_when_clean() -> None:
     from email_cleanup.classify import sensitivity_reasons
 
     message = make_message(
-        "1", sender="maria@gmail.com", subject="Boleto em anexo", has_attachment=True
+        "1",
+        sender="maria@gmail.com",
+        domain="gmail.com",
+        subject="Boleto em anexo",
+        has_attachment=True,
     )
     assert sensitivity_reasons(message) == ("financeiro", "pessoal", "documento")
     assert sensitivity_reasons(neutral_message("2")) == ()

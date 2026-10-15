@@ -243,43 +243,40 @@ def test_delete_permanently_resolves_trash_uids_via_msgid() -> None:
     client = build_client(fake)
     client.connect()
 
-    client.delete_permanently(["10", "11"])
+    purged = client.delete_permanently(["msg-a", "msg-b"])
 
-    fetches = fake.uid_calls("FETCH")
-    assert len(fetches) == 1
-    assert parse_uid_set(fetches[0].args[1]) == {"10", "11"}
-    assert {"UID", "X-GM-MSGID"} <= fetch_items(fetches[0])
-
+    assert purged == {"msg-a", "msg-b"}
+    assert fake.uid_calls("FETCH") == []
     moves = fake.uid_calls("MOVE")
     assert len(moves) == 1
     assert parse_uid_set(moves[0].args[1]) == {"10", "11"}
     assert moves[0].args[2] == TRASH
-
-    searches = fake.uid_calls("SEARCH")
-    assert len(searches) == 2
-    for call in searches:
-        terms = search_terms(call)
-        assert terms[0].upper() == "X-GM-MSGID"
-    assert {search_terms(call)[1] for call in searches} == {"msg-a", "msg-b"}
-
+    for call in fake.uid_calls("SEARCH"):
+        assert search_terms(call)[0].upper() == "X-GM-MSGID"
     stores = fake.uid_calls("STORE")
     assert len(stores) == 1
     assert parse_uid_set(stores[0].args[1]) == {"4", "5"}
     assert stores[0].args[2].upper().startswith("+FLAGS")
     assert stores[0].args[3].replace(" ", "") == "(\\Deleted)"
-
     expunges = fake.uid_calls("EXPUNGE")
     assert len(expunges) == 1
     assert parse_uid_set(expunges[0].args[1]) == {"4", "5"}
-
     assert fake.selected == TRASH
     assert [message.msgid for message in fake.mailbox(TRASH).messages] == ["msg-keep"]
     assert fake.mailbox("INBOX").messages == []
 
-    subcommands = [call.subcommand for call in fake.uid_calls()]
-    assert subcommands.index("FETCH") < subcommands.index("MOVE")
-    assert subcommands.index("MOVE") < subcommands.index("SEARCH")
-    assert subcommands.index("SEARCH") < subcommands.index("STORE") < subcommands.index("EXPUNGE")
+
+def test_delete_permanently_is_idempotent_for_messages_already_in_trash() -> None:
+    fake = build_with_trash()
+    fake.add_message("7", mailbox=TRASH, sender_email="a@x.example", msgid="msg-a")
+    client = build_client(fake)
+    client.connect()
+
+    purged = client.delete_permanently(["msg-a", "msg-gone"])
+
+    assert purged == {"msg-a"}
+    assert fake.uid_calls("MOVE") == []
+    assert fake.mailbox(TRASH).messages == []
 
 
 def test_delete_permanently_splits_every_step_into_action_batches() -> None:
@@ -290,9 +287,9 @@ def test_delete_permanently_splits_every_step_into_action_batches() -> None:
     client = build_client(fake)
     client.connect()
 
-    client.delete_permanently(uids)
+    client.delete_permanently([f"msg-{uid}" for uid in uids])
 
-    for name in ("FETCH", "MOVE", "STORE", "EXPUNGE"):
+    for name in ("MOVE", "STORE", "EXPUNGE"):
         calls = fake.uid_calls(name)
         assert len(calls) == 3
         assert sorted(len(parse_uid_set(call.args[1])) for call in calls) == [50, 200, 200]
@@ -306,12 +303,23 @@ def test_delete_permanently_skips_messages_missing_from_trash() -> None:
     client = build_client(fake)
     client.connect()
 
-    client.delete_permanently(["1"])
+    purged = client.delete_permanently(["msg-a"])
 
+    assert purged == set()
     assert fake.uid_calls("MOVE")
-    assert fake.uid_calls("SEARCH")
     assert fake.uid_calls("STORE") == []
     assert fake.uid_calls("EXPUNGE") == []
+
+
+def test_locate_in_inbox_maps_present_uids_to_msgids() -> None:
+    fake = build_inbox(2)
+    client = build_client(fake)
+    client.connect()
+
+    located = client.locate_in_inbox(["1", "2", "99"])
+
+    assert set(located) == {"1", "2"}
+    assert all(located.values())
 
 
 def test_command_failure_propagates_as_imap_error() -> None:

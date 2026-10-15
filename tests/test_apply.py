@@ -15,7 +15,7 @@ from email_cleanup.apply import (
     run_apply,
     sender_sample,
 )
-from email_cleanup.db import Message, connect, insert_messages, succeeded_uids
+from email_cleanup.db import Message, connect, insert_messages, set_meta, succeeded_uids
 from email_cleanup.imap import ImapClient
 from email_cleanup.rules import save_rule
 
@@ -25,7 +25,9 @@ TRASH = "[Gmail]/Lixeira"
 NOW = datetime(2026, 10, 15, 10, 0, 0, tzinfo=timezone.utc)
 
 
-def make_message(uid: str, sender: str = "news@shop.example") -> Message:
+def make_message(
+    uid: str, sender: str = "news@shop.example", msgid: str | None = None
+) -> Message:
     return Message(
         uid=uid,
         sender=sender,
@@ -38,6 +40,7 @@ def make_message(uid: str, sender: str = "news@shop.example") -> Message:
         has_attachment=False,
         labels=("\\Inbox",),
         fetched_at="2026-10-15T10:00:00+00:00",
+        msgid=msgid if msgid is not None else uid,
     )
 
 
@@ -236,3 +239,131 @@ def test_delete_plan_requires_destructive_phrase(database: sqlite3.Connection) -
     )
     assert code == 0
     assert succeeded_uids(database, "apagar") == {"1", "2", "3", "4", "5"}
+
+
+def manifest_statuses(database: sqlite3.Connection, action: str) -> dict[str, str]:
+    rows = database.execute(
+        "SELECT uid, status FROM manifest WHERE action = ?", (action,)
+    ).fetchall()
+    return dict(rows)
+
+
+def test_delete_after_interrupted_run_finds_messages_in_trash(
+    database: sqlite3.Connection,
+) -> None:
+    fake = build_fake(5)
+    build_client(fake).move_to_trash(["1", "2"])
+    assert [m.uid for m in fake.mailbox("INBOX").messages] == ["3", "4", "5"]
+
+    result = execute(build_client(fake), database, {"apagar": ["1", "2"]})
+
+    assert result.error is None
+    assert fake.mailbox(TRASH).messages == []
+    assert manifest_statuses(database, "apagar") == {"1": "ok", "2": "ok"}
+
+
+def test_delete_message_already_trashed_by_trash_rule(
+    database: sqlite3.Connection,
+) -> None:
+    fake = build_fake(5)
+    execute(build_client(fake), database, {"lixeira": ["1"]})
+
+    execute(build_client(fake), database, {"apagar": ["1"]})
+
+    assert fake.mailbox(TRASH).messages == []
+    assert manifest_statuses(database, "apagar") == {"1": "ok"}
+
+
+def test_delete_message_gone_everywhere_is_absent_not_ok(
+    database: sqlite3.Connection,
+) -> None:
+    fake = build_fake(5)
+    fake.mailbox("INBOX").messages[:] = fake.mailbox("INBOX").messages[1:]
+
+    result = execute(build_client(fake), database, {"apagar": ["1", "2"]})
+
+    assert manifest_statuses(database, "apagar") == {"1": "ausente", "2": "ok"}
+    assert result.done == {"apagar": 1}
+    assert result.absent == {"apagar": 1}
+    assert succeeded_uids(database, "apagar") == {"2"}
+
+
+def test_delete_without_stored_msgid_resolves_from_inbox(
+    database: sqlite3.Connection,
+) -> None:
+    database.execute("UPDATE messages SET gm_msgid = ''")
+    database.commit()
+    fake = build_fake(5)
+
+    execute(build_client(fake), database, {"apagar": ["1"]})
+
+    assert manifest_statuses(database, "apagar") == {"1": "ok"}
+    assert len(fake.mailbox("INBOX").messages) == 4
+    assert fake.mailbox(TRASH).messages == []
+
+
+def test_delete_records_error_when_expunge_does_not_remove(
+    database: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = build_fake(5)
+    monkeypatch.setattr(fake, "_expunge", lambda args: ("OK", [None]))
+
+    result = execute(build_client(fake), database, {"apagar": ["1", "2"]})
+
+    assert result.error is not None
+    assert manifest_statuses(database, "apagar") == {"1": "erro", "2": "erro"}
+    assert succeeded_uids(database, "apagar") == set()
+
+
+def test_archive_skips_uids_missing_from_inbox(database: sqlite3.Connection) -> None:
+    fake = build_fake(5)
+
+    result = execute(build_client(fake), database, {"arquivar": ["1", "99"]})
+
+    assert result.error is None
+    assert manifest_statuses(database, "arquivar") == {"1": "ok", "99": "ausente"}
+    assert [call.args[1] for call in fake.uid_calls("STORE")] == ["1"]
+    assert result.done == {"arquivar": 1}
+    assert result.absent == {"arquivar": 1}
+
+
+def test_trash_skips_uids_missing_from_inbox(database: sqlite3.Connection) -> None:
+    fake = build_fake(5)
+
+    execute(build_client(fake), database, {"lixeira": ["2", "99"]})
+
+    assert manifest_statuses(database, "lixeira") == {"2": "ok", "99": "ausente"}
+    assert [call.args[1] for call in fake.uid_calls("MOVE")] == ["2"]
+
+
+def test_absent_uids_are_not_pending_again(database: sqlite3.Connection) -> None:
+    save_rule(database, "arquivar", {"domain": "shop.example"}, "domínio")
+    fake = build_fake(5)
+    fake.mailbox("INBOX").messages[:] = fake.mailbox("INBOX").messages[1:]
+    session = Session(fake)
+    run_apply(
+        database, silent(), session.factory, dry_run=False, confirm=answering("APLICAR"), now=NOW
+    )
+    assert manifest_statuses(database, "arquivar")["1"] == "ausente"
+
+    code = run_apply(
+        database, silent(), session.factory, dry_run=False, confirm=answering("APLICAR"), now=NOW
+    )
+
+    assert code == 0
+    assert session.opened == 1
+
+
+def test_uidvalidity_change_aborts_apply(database: sqlite3.Connection) -> None:
+    save_rule(database, "arquivar", {"domain": "shop.example"}, "domínio")
+    set_meta(database, "uidvalidity", "9")
+    fake = build_fake(5)
+    session = Session(fake)
+
+    code = run_apply(
+        database, silent(), session.factory, dry_run=False, confirm=answering("APLICAR"), now=NOW
+    )
+
+    assert code == 1
+    assert fake.uid_calls("STORE") == []
+    assert database.execute("SELECT COUNT(*) FROM manifest").fetchone()[0] == 0

@@ -263,7 +263,19 @@ def record_manifest(
 
 
 def succeeded_uids(connection: sqlite3.Connection, action: str) -> set[str]:
+    return _uids_with_status(connection, action, ("ok",))
+
+
+def settled_uids(connection: sqlite3.Connection, action: str) -> set[str]:
+    return _uids_with_status(connection, action, ("ok", "ausente"))
+
+
+def _uids_with_status(
+    connection: sqlite3.Connection, action: str, statuses: Sequence[str]
+) -> set[str]:
+    marks = ",".join("?" for _ in statuses)
     rows = connection.execute(
-        "SELECT uid FROM manifest WHERE action = ? AND status = 'ok'", (action,)
+        f"SELECT uid FROM manifest WHERE action = ? AND status IN ({marks})",
+        (action, *statuses),
     ).fetchall()
     return {row[0] for row in rows}

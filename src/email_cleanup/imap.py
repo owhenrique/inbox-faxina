@@ -17,7 +17,8 @@ TRASH_FLAG = "\\Trash"
 LIST_LINE_PATTERN = re.compile(
     rb'^\((?P<flags>[^)]*)\)\s+(?:NIL|"[^"]*")\s+(?P<name>.+)$'
 )
-MSGID_PATTERN = re.compile(rb"X-GM-MSGID\s+([^\s)]+)")
+MSGID_PATTERN = re.compile(rb"X-GM-MSGID\s+(\d+)")
+UID_PATTERN = re.compile(rb"\bUID\s+(\d+)")
 
 
 class ImapError(RuntimeError):
@@ -175,32 +176,53 @@ class ImapClient:
         for batch in batches(uids, ACTION_BATCH):
             self._uid("MOVE", ",".join(batch), trash)
 
-    def delete_permanently(self, uids: Sequence[str]) -> None:
-        trash = self.find_trash_folder()
-        ordered = list(uids)
-        message_ids: list[str] = []
-        for batch in batches(ordered, ACTION_BATCH):
-            self._select(INBOX, readonly=False)
+    def inbox_uidvalidity(self) -> str | None:
+        self._select(INBOX, readonly=True)
+        return read_uidvalidity(self._require_connection())
+
+    def locate_in_inbox(self, uids: Sequence[str]) -> dict[str, str]:
+        found: dict[str, str] = {}
+        self._select(INBOX, readonly=False)
+        for batch in batches(uids, ACTION_BATCH):
             for line in self._uid("FETCH", ",".join(batch), "(UID X-GM-MSGID)"):
                 if line is None:
                     continue
-                message_ids.extend(
-                    raw.decode("utf-8", errors="replace")
-                    for raw in MSGID_PATTERN.findall(line)
-                )
-        for batch in batches(ordered, ACTION_BATCH):
+                uid = UID_PATTERN.search(line)
+                msgid = MSGID_PATTERN.search(line)
+                if uid is not None and msgid is not None:
+                    found[uid.group(1).decode("ascii")] = msgid.group(1).decode("ascii")
+        return found
+
+    def delete_permanently(self, message_ids: Sequence[str]) -> set[str]:
+        trash = self.find_trash_folder()
+        purged: set[str] = set()
+        for batch in batches(message_ids, ACTION_BATCH):
             self._select(INBOX, readonly=False)
-            self._uid("MOVE", ",".join(batch), trash)
-        self._select(trash, readonly=False)
-        trash_uids: list[str] = []
-        for message_id in message_ids:
-            for item in self._uid("SEARCH", "X-GM-MSGID", message_id):
-                if item:
-                    trash_uids.extend(item.decode("ascii", errors="replace").split())
-        for batch in batches(trash_uids, ACTION_BATCH):
-            self._uid("STORE", ",".join(batch), "+FLAGS", "(\\Deleted)")
-        for batch in batches(trash_uids, ACTION_BATCH):
-            self._uid("EXPUNGE", ",".join(batch))
+            inbox_uids = [uid for mid in batch for uid in self._search_msgid(mid)]
+            for chunk in batches(inbox_uids, ACTION_BATCH):
+                self._uid("MOVE", ",".join(chunk), trash)
+            self._select(trash, readonly=False)
+            in_trash = {mid: self._search_msgid(mid) for mid in batch}
+            in_trash = {mid: uids for mid, uids in in_trash.items() if uids}
+            trash_uids = [uid for uids in in_trash.values() for uid in uids]
+            for chunk in batches(trash_uids, ACTION_BATCH):
+                self._uid("STORE", ",".join(chunk), "+FLAGS", "(\\Deleted)")
+            for chunk in batches(trash_uids, ACTION_BATCH):
+                self._uid("EXPUNGE", ",".join(chunk))
+            remaining = [mid for mid in in_trash if self._search_msgid(mid)]
+            if remaining:
+                raise ImapError(
+                    f"{len(remaining)} mensagens continuam na Lixeira após o expurgo."
+                )
+            purged.update(in_trash)
+        return purged
+
+    def _search_msgid(self, message_id: str) -> list[str]:
+        uids: list[str] = []
+        for item in self._uid("SEARCH", "X-GM-MSGID", message_id):
+            if item:
+                uids.extend(item.decode("ascii", errors="replace").split())
+        return uids
 
     def _open_connection(self) -> ImapConnection:
         try:

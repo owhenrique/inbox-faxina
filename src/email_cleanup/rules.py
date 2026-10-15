@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from email_cleanup.classify import is_larger_than, is_notification, is_older_than, is_promotion
-from email_cleanup.db import Message, add_rule, list_rules, succeeded_uids
+from email_cleanup.db import Message, add_rule, list_rules, settled_uids
 
 ACTIONS = ("manter", "arquivar", "lixeira", "apagar")
 KEEP_ACTION = "manter"
@@ -109,7 +109,7 @@ def pending_by_action(
     for action in ACTIONS:
         if action == KEEP_ACTION:
             continue
-        done = succeeded_uids(connection, action)
+        done = settled_uids(connection, action)
         uids = [
             uid
             for uid, resolution in plan.actions.items()

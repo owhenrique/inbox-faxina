@@ -33,7 +33,9 @@ uv run email-cleanup apply                 # executa após digitar APLICAR
 - `review` é interativo: ↑↓ navega, espaço marca, enter confirma. Cada decisão vira uma regra; a última regra que casa vence.
 - Ações: **manter** (override), **arquivar** (sai da caixa), **lixeira** (Lixeira do Gmail) e **apagar definitivo** (irreversível).
 - `apply` mostra prévia com contagens e amostra de remetentes e exige digitar `APLICAR`; com apagar definitivo no plano, `APAGAR DEFINITIVO`.
-- UIDs já aplicados com sucesso ficam no manifest e são pulados ao rodar `apply` de novo.
+- UIDs já aplicados ficam no manifest e são pulados ao rodar `apply` de novo. Status: `ok` (aplicado), `ausente` (o UID não estava mais na INBOX; não conta como erro e não é reprocessado) e `erro` (lote falhou; reaplicável).
+- Antes de arquivar ou mover, cada lote confere quais UIDs ainda existem na INBOX. Apagar definitivo localiza a mensagem pelo `X-GM-MSGID` (INBOX ou Lixeira), então reexecutar após uma queda é seguro; só grava `ok` se a mensagem foi realmente expurgada.
+- Cada lote usa no máximo 200 UIDs por comando; numa falha o lote inteiro fica `erro` e é reaplicado do zero (as operações são idempotentes).
 
 Recomendado: aplicar primeiro um grupo pequeno de arquivar/lixeira e conferir no Gmail; teste apagar definitivo com 1–2 emails antes de qualquer regra grande.
 

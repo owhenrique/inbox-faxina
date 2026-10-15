@@ -216,7 +216,7 @@ em 3 partes dentro do orçamento de 500 cada (em vez de um PR só).
 
 **Parte 1 — Fundação e catálogo**
 - [x] 1. Setup do repo: uv/pyproject, deps, `.gitignore`, `.env.example`, README esqueleto; commit inicial com esta spec.
-- [ ] 2. Testes (falhando) de `config.py`/`db.py` + `tests/fake_imap.py` (dublê de IMAP4_SSL).
+- [x] 2. Testes (falhando) de `config.py`/`db.py` + `tests/fake_imap.py` (dublê de IMAP4_SSL).
 - [ ] 3. `config.py` + `db.py` (schema, WAL, helpers).
 - [ ] 4. Testes (falhando) de `imap.py` (capabilities, descoberta da Lixeira) e `catalog.py` (lotes, retomada, `--limit`, labels ausentes, subject codificado).
 - [ ] 5. `imap.py` + `catalog.py` + comando `catalog` (progresso rich, Ctrl+C gracioso).

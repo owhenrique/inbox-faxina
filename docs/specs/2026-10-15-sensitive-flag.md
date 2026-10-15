@@ -2,11 +2,11 @@
 id: 2026-10-15-sensitive-flag
 card: —
 titulo: Sinalizador ⚠ de mensagens sensíveis (perigosas de apagar) na revisão
-status: implementada
+status: fechada
 modo: direto
 criada_em: 2026-10-15
 implementada_em: 2026-10-15
-verificada_em:
+verificada_em: 2026-10-15
 branch: feat/sensitive-flag
 merge_request:
 ---
@@ -159,11 +159,18 @@ Não se aplica — TUI de terminal.
 
 ## Verificação independente
 
-Preenchido no `/pato/verify`.
+Subagente em contexto limpo (2026-10-15) revisou `feat/sensitive-flag`: 164 testes verdes, todos os critérios de aceite atendidos, nenhum problema bloqueante.
+
+- Importantes: falsos positivos em `financeiro` por prefixo (pixar, Pixel, Bank of Culture, "saldo de ofertas"); `seguranca` ampla ("Confirme seu pedido", "Login social"); falso negativo em `interbank`/`inter.co`.
+- Menores: `is_personal` divergia da spec (`news@gmail.com`); faltavam "acesso" e "reset password"; regex recompiladas a cada chamada; desempate de motivos dependia da ordem de inserção.
+
+Corrigidos em 2 commits (a12b9da testes, 628f00c implementação), 206 testes verdes; a spec foi alinhada em `is_personal`. Reverificação das correções: suíte de testes e sondagem manual dos casos do relatório (todos com o resultado esperado), sem segundo subagente.
 
 ## Registro de testes
 
-Preenchido no `/pato/close-spec`.
+- Automatizados: `uv run pytest -q` → 206 passed.
+- Manual / QA: **pendente, a cargo do usuário** — `uv run email-cleanup review` sobre o catálogo real; conferir ⚠ nos grupos de banco/pessoas, o aviso ao criar regra de lixeira/apagar e calibrar as listas em `classify.py` se houver ruído.
+- Push / MR: repo sem remote; nada enviado.
 
 ## Riscos e pontos em aberto
 

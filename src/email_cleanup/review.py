@@ -195,10 +195,14 @@ def _decide_groups(
     ]
     selected: list[Group] = _ask(  # type: ignore[assignment]
         questionary.checkbox(
-            "Selecione os grupos (espaço marca, enter confirma):", choices=choices, style=STYLE
+            "Selecione os grupos (ESPAÇO marca, ENTER confirma):", choices=choices, style=STYLE
         )
     )
     if not selected:
+        Console().print(
+            "[yellow]⚠ Nenhum grupo marcado: use a barra de espaço para marcar "
+            "e depois enter.[/yellow]"
+        )
         return
     action = _choose_action()
     senders = sorted({sender for group in selected if group.sender for sender in [group.sender]})
@@ -208,7 +212,10 @@ def _decide_groups(
     hit = [message for message in messages if message.sender in set(senders)]
     description = f"{action} {len(selected)} grupo(s) por remetente"
     if _confirm_rule(action, hit, description):
-        save_rule(connection, action, {"senders": senders}, description)
+        rule_id = save_rule(connection, action, {"senders": senders}, description)
+        Console().print(f"[green]✔[/green] Regra #{rule_id} criada: {description}")
+    else:
+        Console().print("[yellow]Regra não criada.[/yellow]")
 
 
 def _bulk_filter() -> tuple[dict[str, object], str]:
@@ -244,7 +251,10 @@ def _bulk(connection: sqlite3.Connection, messages: Sequence[Message], now: date
     action = _choose_action()
     description = f"{action}: {label}"
     if _confirm_rule(action, hit, description):
-        save_rule(connection, action, rule_filter, description)
+        rule_id = save_rule(connection, action, rule_filter, description)
+        Console().print(f"[green]✔[/green] Regra #{rule_id} criada: {description}")
+    else:
+        Console().print("[yellow]Regra não criada.[/yellow]")
 
 
 def _show_rules(console: Console, connection: sqlite3.Connection, messages: Sequence[Message], now: datetime) -> None:

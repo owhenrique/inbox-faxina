@@ -26,10 +26,11 @@ SUPPORTED_FETCH_ITEMS = frozenset(
         "ENVELOPE",
         "BODYSTRUCTURE",
         "X-GM-LABELS",
+        "X-GM-MSGID",
     }
 )
 
-GMAIL_ITEMS = frozenset({"X-GM-LABELS"})
+GMAIL_ITEMS = frozenset({"X-GM-LABELS", "X-GM-MSGID"})
 
 GMAIL_CAPABILITY = "X-GM-EXT-1"
 
@@ -113,6 +114,7 @@ class FakeMessage:
     sender_email: str = ""
     labels: list[str] = field(default_factory=list)
     bodystructure: str = PLAIN_BODYSTRUCTURE
+    msgid: str = ""
 
     def envelope(self) -> str:
         address = self._address()
@@ -138,6 +140,8 @@ class FakeMessage:
             return f"ENVELOPE {self.envelope()}"
         if item == "BODYSTRUCTURE":
             return f"BODYSTRUCTURE {self.bodystructure}"
+        if item == "X-GM-MSGID":
+            return f"X-GM-MSGID {self.msgid}"
         return f"X-GM-LABELS ({_render_values(self.labels)})"
 
 
@@ -146,6 +150,7 @@ class Mailbox:
     name: str
     flags: list[str] = field(default_factory=list)
     messages: list[FakeMessage] = field(default_factory=list)
+    next_uid: int = 1
 
 
 @dataclass(frozen=True)
@@ -174,6 +179,7 @@ class FakeIMAP4_SSL:
         self.reject_login = False
         self.history: list[RecordedCommand] = []
         self._failures: dict[str, list[bytes]] = {}
+        self._next_msgid = 1
 
     def add_mailbox(
         self,
@@ -198,6 +204,7 @@ class FakeIMAP4_SSL:
         sender_email: str = "",
         labels: Sequence[str] = (),
         bodystructure: str = PLAIN_BODYSTRUCTURE,
+        msgid: str | None = None,
     ) -> FakeMessage:
         message = FakeMessage(
             uid=uid,
@@ -209,11 +216,14 @@ class FakeIMAP4_SSL:
             sender_email=sender_email,
             labels=list(labels),
             bodystructure=bodystructure,
+            msgid=msgid if msgid is not None else str(self._next_msgid),
         )
+        self._next_msgid += 1
         container = self.mailboxes.get(mailbox)
         if container is None:
             container = self.add_mailbox(mailbox)
         container.messages.append(message)
+        container.next_uid = max(container.next_uid, int(uid) + 1)
         return message
 
     def mailbox(self, name: str) -> Mailbox:
@@ -311,12 +321,18 @@ class FakeIMAP4_SSL:
         return "OK", [str(len(container.messages)).encode()]
 
     def _search(self, args: tuple[str, ...]) -> tuple[str, list[bytes | None]]:
-        criteria = " ".join(arg for arg in args if arg is not None).strip()
-        if criteria.upper() != "ALL":
-            raise ValueError(f"unsupported SEARCH criteria: {criteria}")
+        criteria = [arg for arg in args if arg is not None]
         container = self._selected_mailbox()
-        payload = " ".join(message.uid for message in container.messages).encode()
-        return "OK", [payload]
+        joined = " ".join(criteria)
+        if len(criteria) == 1 and criteria[0].upper() == "ALL":
+            payload = " ".join(message.uid for message in container.messages).encode()
+            return "OK", [payload]
+        if len(criteria) == 2 and criteria[0].upper() == "X-GM-MSGID":
+            payload = " ".join(
+                message.uid for message in container.messages if message.msgid == criteria[1]
+            ).encode()
+            return "OK", [payload]
+        raise ValueError(f"unsupported SEARCH criteria: {joined}")
 
     def _fetch(self, args: tuple[str, ...]) -> tuple[str, list[bytes | None]]:
         if len(args) != 2:
@@ -387,13 +403,16 @@ class FakeIMAP4_SSL:
             return "NO", [b"[TRYCREATE] Unknown destination mailbox"]
         container = self._selected_mailbox()
         wanted = _parse_uid_set(uid_set, [int(message.uid) for message in container.messages])
-        moved = []
-        for message in container.messages:
-            if int(message.uid) in wanted:
-                moved.append(message)
+        moved = [
+            message for message in container.messages if int(message.uid) in wanted
+        ]
         container.messages[:] = [
             message for message in container.messages if int(message.uid) not in wanted
         ]
+        if target is not container:
+            for message in moved:
+                message.uid = str(target.next_uid)
+                target.next_uid += 1
         target.messages.extend(moved)
         return "OK", [f"MOVED {len(moved)}".encode()]
 

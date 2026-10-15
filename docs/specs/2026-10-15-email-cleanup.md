@@ -104,8 +104,9 @@ usuário em PT-BR, type hints, sem comentários, regras como funções puras.
   - arquivar = `UID STORE -X-GM-LABELS (\Inbox)`
   - lixeira = `UID MOVE` para a pasta descoberta em `LIST` pelo flag `\Trash`
     (nome localizado, ex.: `[Gmail]/Lixeira` — nunca chutar o nome)
-  - apagar definitivo = `UID MOVE` para a Lixeira, depois `UID STORE +FLAGS
-    (\Deleted)` + `UID EXPUNGE` lá dentro (irreversível)
+  - apagar definitivo = `UID MOVE` para a Lixeira, localizar de novo lá via
+    `UID SEARCH X-GM-MSGID` (o UID muda de caixa para caixa no IMAP) e então
+    `UID STORE +FLAGS (\Deleted)` + `UID EXPUNGE` lá dentro (irreversível)
 - `apply` pula UIDs já com status ok no manifest para a mesma ação (idempotente
   após interrupção); falha de lote registra o lote e para.
 
@@ -218,7 +219,7 @@ em 3 partes dentro do orçamento de 500 cada (em vez de um PR só).
 - [x] 1. Setup do repo: uv/pyproject, deps, `.gitignore`, `.env.example`, README esqueleto; commit inicial com esta spec.
 - [x] 2. Testes (falhando) de `config.py`/`db.py` + `tests/fake_imap.py` (dublê de IMAP4_SSL).
 - [x] 3. `config.py` + `db.py` (schema, WAL, helpers).
-- [ ] 4. Testes (falhando) de `imap.py` (capabilities, descoberta da Lixeira) e `catalog.py` (lotes, retomada, `--limit`, labels ausentes, subject codificado).
+- [x] 4. Testes (falhando) de `imap.py` (capabilities, descoberta da Lixeira) e `catalog.py` (lotes, retomada, `--limit`, labels ausentes, subject codificado).
 - [ ] 5. `imap.py` + `catalog.py` + comando `catalog` (progresso rich, Ctrl+C gracioso).
 
 **Parte 2 — Análise e revisão**

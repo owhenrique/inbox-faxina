@@ -12,6 +12,7 @@ from .catalog import catalog_messages
 from .config import ConfigError, database_path, load_settings
 from .db import connect
 from .imap import ImapClient, ImapError
+from .apply import run_apply
 from .review import run_review
 
 
@@ -71,6 +72,20 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     review_parser.set_defaults(handler=run_review_command)
+    apply_parser = subparsers.add_parser(
+        "apply",
+        help="Aplicar as regras na conta, com prévia e confirmação digitada.",
+        description=(
+            "Resolve o plano a partir das regras, mostra a prévia e só executa "
+            "após a confirmação digitada."
+        ),
+    )
+    apply_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Mostrar a prévia e parar, sem enviar nada à conta.",
+    )
+    apply_parser.set_defaults(handler=run_apply_command)
     return parser
 
 
@@ -83,6 +98,25 @@ def run_review_command(args: argparse.Namespace) -> int:
     database = connect(database_path())
     try:
         return run_review(database, Console())
+    finally:
+        database.close()
+
+
+def run_apply_command(args: argparse.Namespace) -> int:
+    errors = Console(stderr=True)
+    database = connect(database_path())
+
+    def open_client() -> ImapClient:
+        settings = load_settings()
+        client = ImapClient(settings.address, settings.app_password)
+        client.connect()
+        return client
+
+    try:
+        return run_apply(database, Console(), open_client, dry_run=args.dry_run)
+    except (ConfigError, ImapError) as error:
+        errors.print(f"[red]{error}[/red]")
+        return 1
     finally:
         database.close()
 

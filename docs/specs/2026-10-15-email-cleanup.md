@@ -232,8 +232,8 @@ em 3 partes dentro do orçamento de 500 cada (em vez de um PR só).
 - [x] 10. `review.py` (UI: painel-resumo, tabela paginada colorida, menu, checkbox de grupos com descrições, atalhos em massa, ver/remover regras, prévia do plano) + comando `review`.
 
 **Parte 3 — Aplicação**
-- [ ] 11. Testes (falhando) de `apply.py`.
-- [ ] 12. `apply.py` + comando `apply` (painel de prévia, `--dry-run`, confirmações digitadas, lotes com barra de progresso, manifest).
+- [x] 11. Testes (falhando) de `apply.py`.
+- [x] 12. `apply.py` + comando `apply` (painel de prévia, `--dry-run`, confirmações digitadas, lotes com barra de progresso, manifest).
 - [ ] 13. README final: pré-requisitos (2FA + senha de app + IMAP habilitado), fluxo de uso, solução de problemas.
 
 ## Critérios de aceite

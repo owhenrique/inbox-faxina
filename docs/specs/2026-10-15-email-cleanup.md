@@ -2,10 +2,10 @@
 id: 2026-10-15-email-cleanup
 card: —
 titulo: Limpeza da caixa de entrada antiga do Gmail com catálogo e revisão interativa
-status: em-andamento
+status: implementada
 modo: agent-driven
 criada_em: 2026-10-15
-implementada_em:
+implementada_em: 2026-10-15
 verificada_em:
 branch: feat/email-cleanup
 merge_request:
@@ -234,7 +234,7 @@ em 3 partes dentro do orçamento de 500 cada (em vez de um PR só).
 **Parte 3 — Aplicação**
 - [x] 11. Testes (falhando) de `apply.py`.
 - [x] 12. `apply.py` + comando `apply` (painel de prévia, `--dry-run`, confirmações digitadas, lotes com barra de progresso, manifest).
-- [ ] 13. README final: pré-requisitos (2FA + senha de app + IMAP habilitado), fluxo de uso, solução de problemas.
+- [x] 13. README final: pré-requisitos (2FA + senha de app + IMAP habilitado), fluxo de uso, solução de problemas.
 
 ## Critérios de aceite
 

@@ -14,10 +14,9 @@ CLI que cataloga a caixa de entrada antiga do Gmail via IMAP e permite revisar e
 ```bash
 uv sync
 cp .env.example .env   # preencha GMAIL_ADDRESS e GMAIL_APP_PASSWORD
-set -a; source .env; set +a
 ```
 
-As credenciais são lidas só do ambiente; nada é impresso e `.env` está no `.gitignore`.
+As credenciais são lidas do `.env` na raiz do projeto; variáveis já definidas no ambiente têm precedência. Nada é impresso e `.env` está no `.gitignore`.
 
 ## Uso
 
@@ -47,7 +46,7 @@ uv run pytest
 
 | Sintoma | Causa provável |
 | --- | --- |
-| `Variável GMAIL_ADDRESS ausente` | Variáveis não exportadas no shell atual. |
+| `Variável GMAIL_ADDRESS ausente` | `.env` ausente na raiz do projeto ou sem a variável. |
 | `Login rejeitado pelo Gmail` | Senha de app inválida ou 2FA desativado. |
 | `não anunciou os recursos necessários` | IMAP desabilitado na conta. |
 | `Pasta da Lixeira não encontrada` | Rótulo `\Trash` oculto no IMAP: reative em Configurações → Rótulos. |

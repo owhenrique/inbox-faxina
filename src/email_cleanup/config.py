@@ -24,9 +24,37 @@ class Settings:
     app_password: str = field(repr=False)
 
 
-def load_settings() -> Settings:
-    address = os.environ.get("GMAIL_ADDRESS", "").strip()
-    app_password = "".join(os.environ.get("GMAIL_APP_PASSWORD", "").split())
+def parse_env_file(text: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].lstrip()
+        key, separator, value = line.partition("=")
+        key = key.strip()
+        if not separator or not key:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
+def read_env_file(path: Path) -> dict[str, str]:
+    try:
+        return parse_env_file(path.read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+
+
+def load_settings(env_file: Path | None = None) -> Settings:
+    path = PROJECT_ROOT / ".env" if env_file is None else env_file
+    values = {**read_env_file(path), **os.environ}
+    address = values.get("GMAIL_ADDRESS", "").strip()
+    app_password = "".join(values.get("GMAIL_APP_PASSWORD", "").split())
 
     if not address:
         raise ConfigError(

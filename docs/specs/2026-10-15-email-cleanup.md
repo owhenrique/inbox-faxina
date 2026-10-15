@@ -3,7 +3,7 @@ id: 2026-10-15-email-cleanup
 card: —
 titulo: Limpeza da caixa de entrada antiga do Gmail com catálogo e revisão interativa
 status: em-andamento
-modo:
+modo: agent-driven
 criada_em: 2026-10-15
 implementada_em:
 verificada_em:
@@ -215,7 +215,7 @@ em 3 partes dentro do orçamento de 500 cada (em vez de um PR só).
 ## Tarefas
 
 **Parte 1 — Fundação e catálogo**
-- [ ] 1. Setup do repo: uv/pyproject, deps, `.gitignore`, `.env.example`, README esqueleto; commit inicial com esta spec.
+- [x] 1. Setup do repo: uv/pyproject, deps, `.gitignore`, `.env.example`, README esqueleto; commit inicial com esta spec.
 - [ ] 2. Testes (falhando) de `config.py`/`db.py` + `tests/fake_imap.py` (dublê de IMAP4_SSL).
 - [ ] 3. `config.py` + `db.py` (schema, WAL, helpers).
 - [ ] 4. Testes (falhando) de `imap.py` (capabilities, descoberta da Lixeira) e `catalog.py` (lotes, retomada, `--limit`, labels ausentes, subject codificado).

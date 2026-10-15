@@ -367,3 +367,49 @@ def test_uidvalidity_change_aborts_apply(database: sqlite3.Connection) -> None:
     assert code == 1
     assert fake.uid_calls("STORE") == []
     assert database.execute("SELECT COUNT(*) FROM manifest").fetchone()[0] == 0
+
+
+def test_preflight_runs_before_confirmation_and_can_abort(
+    database: sqlite3.Connection,
+) -> None:
+    from email_cleanup.config import ConfigError
+
+    save_rule(database, "arquivar", {"domain": "shop.example"}, "domínio")
+    session = Session(build_fake(5))
+    asked: list[str] = []
+
+    def failing() -> None:
+        raise ConfigError("Variável GMAIL_ADDRESS ausente")
+
+    def confirm(prompt: str) -> str:
+        asked.append(prompt)
+        return "APLICAR"
+
+    with pytest.raises(ConfigError):
+        run_apply(
+            database,
+            silent(),
+            session.factory,
+            dry_run=False,
+            confirm=confirm,
+            preflight=failing,
+            now=NOW,
+        )
+
+    assert asked == []
+    assert session.opened == 0
+
+
+def test_dry_run_skips_preflight(database: sqlite3.Connection) -> None:
+    save_rule(database, "arquivar", {"domain": "shop.example"}, "domínio")
+    calls: list[int] = []
+    code = run_apply(
+        database,
+        silent(),
+        Session(build_fake(5)).factory,
+        dry_run=True,
+        preflight=lambda: calls.append(1),
+        now=NOW,
+    )
+    assert code == 0
+    assert calls == []

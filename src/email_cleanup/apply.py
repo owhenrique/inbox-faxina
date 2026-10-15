@@ -135,6 +135,7 @@ def run_apply(
     *,
     dry_run: bool,
     confirm: Callable[[str], str] = input,
+    preflight: Callable[[], None] | None = None,
     now: datetime | None = None,
 ) -> int:
     messages = list_messages(database)
@@ -150,6 +151,8 @@ def run_apply(
     if dry_run:
         console.print("[cyan]➜ --dry-run: nada foi enviado à conta.[/cyan]")
         return 0
+    if preflight is not None:
+        preflight()
     phrase = confirmation_phrase(pending)
     try:
         typed = confirm(f"Digite {phrase} para executar: ")

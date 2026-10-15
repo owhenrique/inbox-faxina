@@ -32,7 +32,7 @@ uv run email-cleanup apply                 # executa após digitar APLICAR
 - O catálogo guarda o `UIDVALIDITY` da INBOX; se mudar, o `catalog` e o `apply` abortam e pedem para apagar `.data/catalog.sqlite` e catalogar de novo.
 - `review` é interativo: ↑↓ navega, espaço marca, enter confirma. Cada decisão vira uma regra; a última regra que casa vence.
 - Ações: **manter** (override), **arquivar** (sai da caixa), **lixeira** (Lixeira do Gmail) e **apagar definitivo** (irreversível).
-- `apply` mostra prévia com contagens e amostra de remetentes e exige digitar `APLICAR`; com apagar definitivo no plano, `APAGAR DEFINITIVO`.
+- `apply` mostra prévia com contagens e amostra de remetentes e exige digitar `APLICAR` (credenciais e terminal interativo são validados antes do prompt; `--dry-run` não exige credenciais nem abre conexão); com apagar definitivo no plano, `APAGAR DEFINITIVO`.
 - UIDs já aplicados ficam no manifest e são pulados ao rodar `apply` de novo. Status: `ok` (aplicado), `ausente` (o UID não estava mais na INBOX; não conta como erro e não é reprocessado) e `erro` (lote falhou; reaplicável).
 - Antes de arquivar ou mover, cada lote confere quais UIDs ainda existem na INBOX. Apagar definitivo localiza a mensagem pelo `X-GM-MSGID` (INBOX ou Lixeira), então reexecutar após uma queda é seguro; só grava `ok` se a mensagem foi realmente expurgada.
 - Cada lote usa no máximo 200 UIDs por comando; numa falha o lote inteiro fica `erro` e é reaplicado do zero (as operações são idempotentes).
@@ -54,6 +54,7 @@ uv run pytest
 | `não anunciou os recursos necessários` | IMAP desabilitado na conta. |
 | `Pasta da Lixeira não encontrada` | Rótulo `\Trash` oculto no IMAP: reative em Configurações → Rótulos. |
 | `A revisão precisa de um terminal interativo` | `review` rodado sem TTY (pipe/CI). |
+| `O apply precisa de um terminal interativo` | `apply` (sem `--dry-run`) rodado sem TTY. |
 | Lote falhou | Throttling ou queda de rede: rode `apply` de novo, retoma do que faltou. |
 
 ## Spec

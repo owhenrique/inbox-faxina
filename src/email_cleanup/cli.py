@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -102,9 +103,21 @@ def run_review_command(args: argparse.Namespace) -> int:
         database.close()
 
 
+def require_terminal() -> None:
+    if not sys.stdin.isatty():
+        raise ConfigError(
+            "O `apply` precisa de um terminal interativo para a confirmação digitada: "
+            "rode no terminal, sem pipe. Use --dry-run para só ver a prévia."
+        )
+
+
 def run_apply_command(args: argparse.Namespace) -> int:
     errors = Console(stderr=True)
     database = connect(database_path())
+
+    def preflight() -> None:
+        require_terminal()
+        load_settings()
 
     def open_client() -> ImapClient:
         settings = load_settings()
@@ -113,7 +126,9 @@ def run_apply_command(args: argparse.Namespace) -> int:
         return client
 
     try:
-        return run_apply(database, Console(), open_client, dry_run=args.dry_run)
+        return run_apply(
+            database, Console(), open_client, dry_run=args.dry_run, preflight=preflight
+        )
     except (ConfigError, ImapError) as error:
         errors.print(f"[red]{error}[/red]")
         return 1

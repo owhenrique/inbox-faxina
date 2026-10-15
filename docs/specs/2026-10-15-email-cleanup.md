@@ -62,6 +62,8 @@ limpeza e aplica somente após prévia e confirmação explícita.
 - P: Atalhos em massa na revisão? → R: sim, além do refino grupo a grupo.
 - P: Ambiente? → R: uv + pyproject.toml.
 - P: Visual? → R: UI caprichada no terminal, no espírito das interações do opencode (setas, checkbox de grupos, descrições por opção).
+- P: Teto de 500 linhas estourou na Parte 1 (948)? → R: adaptado neste repo pessoal — vale como meta por commit, não por branch; registro na spec.
+- P: Usar graphify nas Partes 2–3? → R: sim; gerar o grafo do repo (`graphify extract . --code-only`) e usar `check-update`/`explain` nos subagentes.
 
 ## Premissas
 
@@ -220,7 +222,7 @@ em 3 partes dentro do orçamento de 500 cada (em vez de um PR só).
 - [x] 2. Testes (falhando) de `config.py`/`db.py` + `tests/fake_imap.py` (dublê de IMAP4_SSL).
 - [x] 3. `config.py` + `db.py` (schema, WAL, helpers).
 - [x] 4. Testes (falhando) de `imap.py` (capabilities, descoberta da Lixeira) e `catalog.py` (lotes, retomada, `--limit`, labels ausentes, subject codificado).
-- [ ] 5. `imap.py` + `catalog.py` + comando `catalog` (progresso rich, Ctrl+C gracioso).
+- [x] 5. `imap.py` + `catalog.py` + comando `catalog` (progresso rich, Ctrl+C gracioso).
 
 **Parte 2 — Análise e revisão**
 - [ ] 6. Testes (falhando) de `classify.py`.
@@ -278,5 +280,6 @@ Preenchido no `/pato/close-spec`.
 - Se `X-GM-LABELS` não vier como esperado, catálogo segue com heurísticas.
 - Repo novo sem remote: push/MR do `/pato/close-spec` só quando houver remote.
 - Sensibilidade a throttling do Gmail em rajadas: lotes + retomada cobrem.
+- Teto de 500 linhas adaptado por decisão do usuário: neste repo pessoal vale como meta por commit, não por branch (a Parte 1 fechou ≈950).
 - Se a Parte 2 estourar os 500, entregar em dois commits lógicos (regras por
   grupo → atalhos em massa + polimento da UI).

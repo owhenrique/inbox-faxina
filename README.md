@@ -39,6 +39,14 @@ uv run email-cleanup apply                 # executa após digitar APLICAR
 
 Recomendado: aplicar primeiro um grupo pequeno de arquivar/lixeira e conferir no Gmail; teste apagar definitivo com 1–2 emails antes de qualquer regra grande.
 
+## Sinalizador ⚠ de mensagens sensíveis
+
+No `review`, grupos com mensagens que parecem sensíveis mostram `⚠ N/M` na tabela e os motivos na lista de seleção. Ao criar uma regra de **lixeira** ou **apagar** que atinja essas mensagens, a confirmação mostra a contagem por motivo. É só um aviso: nada é bloqueado.
+
+Motivos: `financeiro` (banco, fatura, boleto, pix…), `seguranca` (código de verificação, redefinição de senha…), `pessoal` (remetente em webmail como gmail/outlook/hotmail, exceto `noreply`) e `documento` (anexo, contrato, recibo, comprovante…).
+
+A ausência de ⚠ não garante que a mensagem é segura. Para calibrar, edite as listas `FINANCIAL_TERMS`, `SECURITY_TERMS`, `PERSONAL_DOMAINS` e `DOCUMENT_SUBJECT_TERMS` em `src/email_cleanup/classify.py`.
+
 ## Testes
 
 ```bash

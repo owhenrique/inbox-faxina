@@ -2,10 +2,10 @@
 id: 2026-10-15-sensitive-flag
 card: —
 titulo: Sinalizador ⚠ de mensagens sensíveis (perigosas de apagar) na revisão
-status: pendente
+status: implementada
 modo: direto
 criada_em: 2026-10-15
-implementada_em:
+implementada_em: 2026-10-15
 verificada_em:
 branch: feat/sensitive-flag
 merge_request:
@@ -117,10 +117,10 @@ consciência. É só aviso: não bloqueia nem muda o fluxo.
 
 ## Tarefas
 
-- [ ] 1. Testes (falhando) de `is_financial`/`is_security`/`is_personal`/`is_document`, `sensitivity_reasons` e dos novos campos de `Group`.
-- [ ] 2. Implementar as heurísticas e os campos em `classify.py`.
-- [ ] 3. `review.py`: coluna ⚠ na tabela, descrição no checkbox, aviso em `_confirm_rule`, linha no painel-resumo.
-- [ ] 4. README: documentar o ⚠ e como calibrar as listas.
+- [x] 1. Testes (falhando) de `is_financial`/`is_security`/`is_personal`/`is_document`, `sensitivity_reasons` e dos novos campos de `Group`.
+- [x] 2. Implementar as heurísticas e os campos em `classify.py`.
+- [x] 3. `review.py`: coluna ⚠ na tabela, descrição no checkbox, aviso em `_confirm_rule`, linha no painel-resumo.
+- [x] 4. README: documentar o ⚠ e como calibrar as listas.
 
 ## Critérios de aceite
 

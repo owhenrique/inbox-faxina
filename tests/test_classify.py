@@ -440,3 +440,65 @@ def test_group_is_a_frozen_dataclass() -> None:
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         group.count = 2
+
+
+def test_is_financial_matches_bank_sender_and_subject() -> None:
+    from email_cleanup.classify import is_financial
+
+    assert is_financial(neutral_message("1", sender="noreply@nubank.com.br", subject="Sua fatura"))
+    assert is_financial(neutral_message("2", subject="Extrato de março"))
+    assert not is_financial(neutral_message("3", subject="Olá, tudo bem?"))
+
+
+def test_is_security_matches_codes_and_resets() -> None:
+    from email_cleanup.classify import is_security
+
+    assert is_security(neutral_message("1", subject="Seu código de verificação"))
+    assert is_security(neutral_message("2", subject="Redefinição de senha"))
+    assert is_security(neutral_message("3", subject="Security alert"))
+    assert not is_security(neutral_message("4", subject="Promoção da semana"))
+
+
+def test_is_personal_requires_webmail_domain_and_non_automatic_sender() -> None:
+    from email_cleanup.classify import is_personal
+
+    assert is_personal(neutral_message("1", sender="maria@gmail.com", subject="Oi"))
+    assert is_personal(neutral_message("2", sender="joao@hotmail.com", subject="Oi"))
+    assert not is_personal(neutral_message("3", sender="noreply@gmail.com", subject="Oi"))
+    assert not is_personal(neutral_message("4", sender="maria@empresa.com.br", subject="Oi"))
+
+
+def test_is_document_by_attachment_or_subject() -> None:
+    from email_cleanup.classify import is_document
+
+    assert is_document(make_message("1", has_attachment=True))
+    assert is_document(neutral_message("2", subject="Comprovante de pagamento"))
+    assert not is_document(neutral_message("3", subject="Olá"))
+
+
+def test_sensitivity_reasons_ordered_and_empty_when_clean() -> None:
+    from email_cleanup.classify import sensitivity_reasons
+
+    message = make_message(
+        "1", sender="maria@gmail.com", subject="Boleto em anexo", has_attachment=True
+    )
+    assert sensitivity_reasons(message) == ("financeiro", "pessoal", "documento")
+    assert sensitivity_reasons(neutral_message("2")) == ()
+
+
+def test_group_counts_sensitive_messages_and_reasons() -> None:
+    messages = [
+        neutral_message(str(i), sender="maria@gmail.com", subject="Oi") for i in range(3)
+    ] + [
+        neutral_message(str(i), sender="maria@gmail.com", subject="Boleto") for i in range(3, 5)
+    ]
+    groups = build_groups(messages, min_count=1)
+    assert groups[0].sensitive_count == 5
+    assert groups[0].sensitive_reasons[0] == "pessoal"
+    assert set(groups[0].sensitive_reasons) == {"pessoal", "financeiro"}
+
+
+def test_group_without_sensitive_messages_is_clean() -> None:
+    groups = build_groups([neutral_message("1")], min_count=1)
+    assert groups[0].sensitive_count == 0
+    assert groups[0].sensitive_reasons == ()

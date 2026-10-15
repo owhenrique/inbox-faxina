@@ -506,3 +506,107 @@ def test_group_without_sensitive_messages_is_clean() -> None:
     groups = build_groups([neutral_message("1")], min_count=1)
     assert groups[0].sensitive_count == 0
     assert groups[0].sensitive_reasons == ()
+
+
+@pytest.mark.parametrize(
+    ("sender", "subject"),
+    [
+        ("contato@pixar.com", "Novidades"),
+        ("lojas@pixel.com", "Pixel 9 chegou"),
+        ("hello@mail.com", "Bank of Culture"),
+        ("ofertas@loja.com", "Saldo de ofertas"),
+        ("oi@internacional.com.br", "Olá"),
+    ],
+)
+def test_is_financial_ignores_prefix_and_ambiguous_matches(sender: str, subject: str) -> None:
+    from email_cleanup.classify import is_financial
+
+    assert not is_financial(neutral_message("1", sender=sender, subject=subject))
+
+
+@pytest.mark.parametrize(
+    ("sender", "subject"),
+    [
+        ("noreply@nubank.com.br", "Olá"),
+        ("noreply@itau.com.br", "Olá"),
+        ("no-reply@bradesco.com.br", "Olá"),
+        ("no-reply@santander.com.br", "Olá"),
+        ("service@paypal.com", "Olá"),
+        ("no-reply@mercadopago.com", "Olá"),
+        ("no-reply@bancointer.com.br", "Olá"),
+        ("news@interbank.com", "Olá"),
+        ("no-reply@inter.co", "Olá"),
+        ("no-reply@bancodobrasil.com.br", "Olá"),
+        ("x@example.com", "Pix recebido"),
+        ("x@example.com", "Suas faturas"),
+        ("x@example.com", "Seu saldo disponível"),
+        ("x@example.com", "Banco Inter: novidades"),
+        ("x@example.com", "Online banking"),
+    ],
+)
+def test_is_financial_matches_known_institutions_and_terms(sender: str, subject: str) -> None:
+    from email_cleanup.classify import is_financial
+
+    assert is_financial(neutral_message("1", sender=sender, subject=subject))
+
+
+@pytest.mark.parametrize(
+    "subject",
+    ["Confirme seu pedido", "Login social", "Acesso liberado", "Promoção da semana"],
+)
+def test_is_security_ignores_broad_terms(subject: str) -> None:
+    from email_cleanup.classify import is_security
+
+    assert not is_security(neutral_message("1", subject=subject))
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Novo login detectado",
+        "Login suspeito na sua conta",
+        "New login to your account",
+        "New sign-in",
+        "Confirme seu e-mail",
+        "Confirme seu cadastro",
+        "Confirm your account",
+        "Acesso não reconhecido",
+        "Novo acesso à conta",
+        "Acesso a sua conta",
+        "Redefina sua senha",
+        "Redefinir senha",
+        "Reset password",
+        "Reset your password",
+        "Password reset requested",
+    ],
+)
+def test_is_security_matches_specific_phrases(subject: str) -> None:
+    from email_cleanup.classify import is_security
+
+    assert is_security(neutral_message("1", subject=subject))
+
+
+def test_is_personal_excludes_promotion_local_parts() -> None:
+    from email_cleanup.classify import is_personal
+
+    assert not is_personal(neutral_message("1", sender="news@gmail.com", subject="Oi"))
+    assert not is_personal(neutral_message("2", sender="promo@hotmail.com", subject="Oi"))
+    assert is_personal(neutral_message("3", sender="maria@gmail.com", subject="Fatura da semana"))
+    assert is_personal(neutral_message("4", sender="maria@gmail.com", subject="Oi"))
+
+
+def test_group_sensitive_reasons_tie_breaks_by_reason_order() -> None:
+    messages = [
+        neutral_message("1", sender="maria@gmail.com", subject="Boleto"),
+        neutral_message("2", sender="maria@gmail.com", subject="Contrato"),
+    ]
+    groups = build_groups(messages, min_count=1)
+    assert groups[0].sensitive_reasons == ("financeiro", "pessoal", "documento")
+
+
+def test_group_sensitive_reasons_sorted_by_count_desc() -> None:
+    messages = [
+        neutral_message(str(i), sender="maria@gmail.com", subject="Contrato") for i in range(3)
+    ] + [neutral_message("9", sender="maria@gmail.com", subject="Boleto")]
+    groups = build_groups(messages, min_count=1)
+    assert groups[0].sensitive_reasons == ("pessoal", "documento", "financeiro")

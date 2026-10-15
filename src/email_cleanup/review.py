@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+from collections import Counter
 from collections.abc import Sequence
 from datetime import datetime, timezone
 
@@ -10,7 +11,13 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from email_cleanup.classify import Group, build_groups, is_notification, is_promotion
+from email_cleanup.classify import (
+    Group,
+    build_groups,
+    is_notification,
+    is_promotion,
+    sensitivity_reasons,
+)
 from email_cleanup.db import Message, get_meta, list_messages, list_rules, remove_rule
 from email_cleanup.rules import ACTIONS, Plan, build_plan, matches, rule_hit_counts, save_rule
 
@@ -54,6 +61,8 @@ BULK_OPTIONS = (
     ("sender", "Remetente ou domínio"),
 )
 CONFIRM_DELETE = "APAGAR"
+DANGER_ICON = "⚠"
+DANGER_ACTIONS = ("lixeira", "apagar")
 
 
 class ReviewAborted(Exception):
@@ -75,10 +84,26 @@ def format_count(count: int) -> str:
 
 def group_description(group: Group) -> str:
     promo = round(100 * group.promo_count / group.count)
-    return (
+    description = (
         f"{format_count(group.count)} emails • {format_size(group.total_size)} • "
         f"{promo}% promoções"
     )
+    if group.sensitive_count:
+        reasons = ", ".join(group.sensitive_reasons)
+        description += f" • {DANGER_ICON} {group.sensitive_count} sensíveis ({reasons})"
+    return description
+
+
+def danger_warning(messages: Sequence[Message], action: str) -> str | None:
+    if action not in DANGER_ACTIONS:
+        return None
+    reasons = [sensitivity_reasons(message) for message in messages]
+    flagged = sum(1 for item in reasons if item)
+    if not flagged:
+        return None
+    counts = Counter(reason for item in reasons for reason in item)
+    detail = ", ".join(f"{reason}: {count}" for reason, count in counts.most_common())
+    return f"{DANGER_ICON} {flagged} de {len(messages)} mensagens parecem sensíveis ({detail})"
 
 
 def summary_panel(
@@ -86,6 +111,7 @@ def summary_panel(
 ) -> Panel:
     promos = sum(1 for message in messages if is_promotion(message))
     notifications = sum(1 for message in messages if is_notification(message))
+    sensitive = sum(1 for message in messages if sensitivity_reasons(message))
     oldest = min((message.internal_date for message in messages), default="—")
     body = "\n".join(
         [
@@ -94,6 +120,7 @@ def summary_panel(
             f"({format_size(sum(message.size for message in messages))})",
             f"Grupos: [bold]{len(groups)}[/bold]",
             f"Promoções: {format_count(promos)} • Notificações: {format_count(notifications)}",
+            f"{DANGER_ICON} Sensíveis: {format_count(sensitive)}",
             f"Mais antigo: {oldest[:10]}",
             f"Catalogado em: {(finished_at or '—')[:19]}",
         ]
@@ -119,7 +146,7 @@ def groups_table(
     groups: Sequence[Group], actions: dict[int, str], page: int, now: datetime
 ) -> Table:
     table = Table(title=f"Grupos — página {page + 1}", header_style="bold")
-    for column in ("#", "Remetente", "Emails", "Tamanho", "Mais antigo", "Ação"):
+    for column in ("#", "Remetente", "Emails", "Tamanho", "Mais antigo", DANGER_ICON, "Ação"):
         table.add_column(column)
     start = page * PAGE_SIZE
     for index in range(start, min(start + PAGE_SIZE, len(groups))):
@@ -133,9 +160,16 @@ def groups_table(
             format_count(group.count),
             format_size(group.total_size),
             group.oldest_date[:10],
+            _danger_cell(group),
             f"[{color}]{mark}{action}[/{color}]",
         )
     return table
+
+
+def _danger_cell(group: Group) -> str:
+    if not group.sensitive_count:
+        return ""
+    return f"[bold red]{DANGER_ICON} {group.sensitive_count}/{group.count}[/bold red]"
 
 
 def plan_panel(plan: Plan) -> Panel:
@@ -172,6 +206,9 @@ def _confirm_rule(
     Console().print(
         f"➜ {description}: [bold]{format_count(count)}[/bold] emails • {format_size(size)}"
     )
+    warning = danger_warning(messages, action)
+    if warning is not None:
+        Console().print(f"[bold red]{warning}[/bold red]")
     if action == "apagar":
         typed = _ask(questionary.text(f"Digite {CONFIRM_DELETE} para confirmar:", style=STYLE))
         return str(typed).strip() == CONFIRM_DELETE

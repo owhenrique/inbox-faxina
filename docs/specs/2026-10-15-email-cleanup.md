@@ -227,8 +227,8 @@ em 3 partes dentro do orçamento de 500 cada (em vez de um PR só).
 **Parte 2 — Análise e revisão**
 - [x] 6. Testes (falhando) de `classify.py`.
 - [x] 7. `classify.py` (fold de acentos, flags, anexo, idade, grupos com corte → "diversos").
-- [ ] 8. Testes (falhando) de `rules.py`.
-- [ ] 9. `rules.py` (persistência + resolução última-regra-vence + conflitos + skip de manifest).
+- [x] 8. Testes (falhando) de `rules.py`.
+- [x] 9. `rules.py` (persistência + resolução última-regra-vence + conflitos + skip de manifest).
 - [ ] 10. `review.py` (UI: painel-resumo, tabela paginada colorida, menu, checkbox de grupos com descrições, atalhos em massa, ver/remover regras, prévia do plano) + comando `review`.
 
 **Parte 3 — Aplicação**

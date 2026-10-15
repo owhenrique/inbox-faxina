@@ -151,6 +151,7 @@ class Mailbox:
     flags: list[str] = field(default_factory=list)
     messages: list[FakeMessage] = field(default_factory=list)
     next_uid: int = 1
+    uidvalidity: int = 1
 
 
 @dataclass(frozen=True)
@@ -285,6 +286,11 @@ class FakeIMAP4_SSL:
 
     def examine(self, mailbox: str) -> tuple[str, list[bytes | None]]:
         return self._open_mailbox("examine", mailbox)
+
+    def response(self, code: str) -> tuple[str, list[bytes | None]]:
+        if code.upper() != "UIDVALIDITY" or self.selected is None:
+            return code, [None]
+        return code, [str(self.mailboxes[self.selected].uidvalidity).encode()]
 
     def uid(self, command: str, *args: str) -> tuple[str, list[bytes | None]]:
         self.history.append(RecordedCommand(name="uid", args=(command, *args)))

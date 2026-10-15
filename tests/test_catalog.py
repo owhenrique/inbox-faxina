@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from email_cleanup.catalog import catalog_messages
+from email_cleanup.imap import ImapError
 from email_cleanup.db import connect, get_meta, list_messages
 
 from fake_imap import ATTACHMENT_BODYSTRUCTURE, FakeIMAP4_SSL, RecordedCommand
@@ -14,7 +15,7 @@ from fake_imap import ATTACHMENT_BODYSTRUCTURE, FakeIMAP4_SSL, RecordedCommand
 ENCODED_SUBJECT = "=?UTF-8?B?UHJvbW/Dp8OjbyBpbXBlcmTDrXZlbA==?="
 BROKEN_CHARSET_SUBJECT = "=?X-UNKNOWN?B?T2xkIFN1YmplY3Q=?="
 FETCH_ITEMS = frozenset(
-    {"RFC822.SIZE", "INTERNALDATE", "FLAGS", "ENVELOPE", "BODYSTRUCTURE", "X-GM-LABELS"}
+    {"RFC822.SIZE", "INTERNALDATE", "FLAGS", "ENVELOPE", "BODYSTRUCTURE", "X-GM-LABELS", "X-GM-MSGID"}
 )
 
 
@@ -281,3 +282,70 @@ def test_empty_inbox_catalogs_nothing(tmp_path: Path) -> None:
     assert cataloged == 0
     assert list_messages(database) == []
     assert fake.uid_calls("FETCH") == []
+
+
+def test_limit_runs_never_skip_uids_missing_below_last_uid(tmp_path: Path) -> None:
+    fake = make_inbox(4)
+    database = make_database(tmp_path)
+    catalog_messages(fake, database, limit=2)
+    fake.add_message("3", sender_email="late@shop.example")
+    database.execute("DELETE FROM messages WHERE uid = '1'")
+    database.commit()
+
+    catalog_messages(fake, database)
+
+    assert {message.uid for message in list_messages(database)} == {"1", "2", "3", "4"}
+
+
+def test_catalog_records_account_and_finished_at(tmp_path: Path) -> None:
+    fake = make_inbox(3)
+    database = make_database(tmp_path)
+
+    catalog_messages(fake, database, limit=1, account="ana@gmail.com")
+
+    assert get_meta(database, "account") == "ana@gmail.com"
+    assert get_meta(database, "catalog_finished_at") is None
+
+    catalog_messages(fake, database, account="ana@gmail.com")
+
+    assert get_meta(database, "catalog_finished_at") is not None
+
+
+def test_catalog_stores_msgid_and_uidvalidity(tmp_path: Path) -> None:
+    fake = FakeIMAP4_SSL("imap.gmail.com", 993)
+    fake.add_message("1", sender_email="a@x.example", msgid="777")
+    fake.mailbox("INBOX").uidvalidity = 42
+    database = make_database(tmp_path)
+
+    catalog_messages(fake, database)
+
+    assert [message.msgid for message in list_messages(database)] == ["777"]
+    assert get_meta(database, "uidvalidity") == "42"
+
+
+def test_uidvalidity_change_aborts_catalog(tmp_path: Path) -> None:
+    fake = make_inbox(2)
+    database = make_database(tmp_path)
+    catalog_messages(fake, database)
+    fake.mailbox("INBOX").uidvalidity = 2
+
+    with pytest.raises(ImapError):
+        catalog_messages(fake, database)
+
+
+def test_old_database_is_migrated_with_msgid_column(tmp_path: Path) -> None:
+    path = tmp_path / "old.sqlite"
+    raw = sqlite3.connect(path)
+    raw.execute(
+        "CREATE TABLE messages (uid TEXT PRIMARY KEY, sender TEXT NOT NULL, "
+        "sender_name TEXT NOT NULL, domain TEXT NOT NULL, subject TEXT NOT NULL, "
+        "internal_date TEXT NOT NULL, size INTEGER NOT NULL, seen INTEGER NOT NULL, "
+        "has_attachment INTEGER NOT NULL, labels TEXT NOT NULL, fetched_at TEXT NOT NULL)"
+    )
+    raw.execute("INSERT INTO messages VALUES ('1','a','','x','s','d',1,0,0,'[]','t')")
+    raw.commit()
+    raw.close()
+
+    database = connect(path)
+
+    assert [message.msgid for message in list_messages(database)] == [""]

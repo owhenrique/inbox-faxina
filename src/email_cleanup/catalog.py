@@ -7,13 +7,14 @@ from email.header import decode_header
 from email.utils import parsedate_to_datetime
 
 from .config import FETCH_BATCH
-from .db import Message, get_meta, insert_messages, now_iso, set_meta
+from .db import Message, get_meta, insert_messages, known_uids, now_iso, set_meta
 from .imap import (
     INBOX,
     ImapConnection,
     ImapError,
     batches,
     fetch_capabilities,
+    read_uidvalidity,
     server_detail,
 )
 
@@ -26,7 +27,8 @@ FETCH_FIELDS = (
     "ENVELOPE",
     "BODYSTRUCTURE",
 )
-FIELD_KEYS = frozenset({*FETCH_FIELDS, "X-GM-LABELS"})
+GMAIL_FETCH_FIELDS = ("X-GM-LABELS", "X-GM-MSGID")
+FIELD_KEYS = frozenset({*FETCH_FIELDS, *GMAIL_FETCH_FIELDS})
 
 
 def catalog_messages(
@@ -37,6 +39,7 @@ def catalog_messages(
     limit: int | None = None,
     batch_size: int = FETCH_BATCH,
     on_progress: Callable[[int, int], None] | None = None,
+    account: str | None = None,
 ) -> int:
     status, data = connection.examine(INBOX)
     if status != "OK":
@@ -44,8 +47,10 @@ def catalog_messages(
     status, data = connection.uid("SEARCH", "ALL")
     if status != "OK":
         raise ImapError(f"Falha ao buscar mensagens na INBOX: {server_detail(data)}")
-    last_uid = 0 if refresh else _last_uid(database)
-    pending = [uid for uid in _parse_search_uids(data) if int(uid) > last_uid]
+    _check_uidvalidity(connection, database)
+    known = set() if refresh else known_uids(database)
+    pending = [uid for uid in _parse_search_uids(data) if uid not in known]
+    complete = limit is None or len(pending) <= limit
     if limit is not None:
         pending = pending[:limit]
     total = len(pending)
@@ -72,6 +77,10 @@ def catalog_messages(
         done += len(batch)
         if on_progress is not None:
             on_progress(done, total)
+    if account is not None:
+        set_meta(database, "account", account)
+    if complete:
+        set_meta(database, "catalog_finished_at", now_iso())
     return cataloged
 
 
@@ -99,6 +108,7 @@ def parse_fetch_line(line: bytes, fetched_at: str) -> Message | None:
         has_attachment=_contains_attachment(values.get("BODYSTRUCTURE")),
         labels=_extract_labels(values.get("X-GM-LABELS")),
         fetched_at=fetched_at,
+        msgid=_parse_msgid(values.get("X-GM-MSGID")),
     )
 
 
@@ -246,20 +256,27 @@ def _parse_search_uids(data: Sequence[bytes | None]) -> list[str]:
     return [str(uid) for uid in sorted(uids)]
 
 
-def _last_uid(database: sqlite3.Connection) -> int:
-    stored = get_meta(database, "last_uid")
-    if not stored:
-        return 0
-    try:
-        return int(stored)
-    except ValueError:
-        return 0
+def _parse_msgid(value: object) -> str:
+    return value if isinstance(value, str) and value.isdigit() else ""
+
+
+def _check_uidvalidity(connection: ImapConnection, database: sqlite3.Connection) -> None:
+    current = read_uidvalidity(connection)
+    if current is None:
+        return
+    stored = get_meta(database, "uidvalidity")
+    if stored is not None and stored != current:
+        raise ImapError(
+            "O UIDVALIDITY da INBOX mudou: os UIDs do catálogo não valem mais. "
+            "Apague .data/catalog.sqlite e catalogue de novo."
+        )
+    set_meta(database, "uidvalidity", current)
 
 
 def _fetch_items(connection: ImapConnection) -> str:
     items = list(FETCH_FIELDS)
     if _gmail_labels_available(connection):
-        items.append("X-GM-LABELS")
+        items.extend(GMAIL_FETCH_FIELDS)
     return "(" + " ".join(items) + ")"
 
 

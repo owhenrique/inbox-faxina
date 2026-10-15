@@ -9,7 +9,7 @@ from pathlib import Path
 
 MESSAGE_COLUMNS = (
     "uid, sender, sender_name, domain, subject, internal_date, size, "
-    "seen, has_attachment, labels, fetched_at"
+    "seen, has_attachment, labels, fetched_at, gm_msgid"
 )
 
 SCHEMA = """
@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS messages (
     seen INTEGER NOT NULL,
     has_attachment INTEGER NOT NULL,
     labels TEXT NOT NULL,
-    fetched_at TEXT NOT NULL
+    fetched_at TEXT NOT NULL,
+    gm_msgid TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS rules (
@@ -52,7 +53,7 @@ CREATE TABLE IF NOT EXISTS meta (
 
 INSERT_MESSAGE_SQL = f"""
 INSERT INTO messages ({MESSAGE_COLUMNS})
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(uid) DO UPDATE SET
     sender = excluded.sender,
     sender_name = excluded.sender_name,
@@ -63,7 +64,8 @@ ON CONFLICT(uid) DO UPDATE SET
     seen = excluded.seen,
     has_attachment = excluded.has_attachment,
     labels = excluded.labels,
-    fetched_at = excluded.fetched_at
+    fetched_at = excluded.fetched_at,
+    gm_msgid = excluded.gm_msgid
 """
 
 
@@ -80,6 +82,7 @@ class Message:
     has_attachment: bool
     labels: tuple[str, ...]
     fetched_at: str
+    msgid: str = ""
 
 
 @dataclass(frozen=True)
@@ -112,6 +115,9 @@ def connect(path: Path) -> sqlite3.Connection:
 
 def init_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(SCHEMA)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(messages)")}
+    if "gm_msgid" not in columns:
+        connection.execute("ALTER TABLE messages ADD COLUMN gm_msgid TEXT NOT NULL DEFAULT ''")
     connection.commit()
 
 
@@ -129,6 +135,7 @@ def insert_messages(connection: sqlite3.Connection, messages: Sequence[Message])
             int(message.has_attachment),
             json.dumps(list(message.labels)),
             message.fetched_at,
+            message.msgid,
         )
         for message in messages
     ]
@@ -153,6 +160,7 @@ def list_messages(connection: sqlite3.Connection) -> list[Message]:
             has_attachment=bool(row[8]),
             labels=tuple(json.loads(row[9])),
             fetched_at=row[10],
+            msgid=row[11],
         )
         for row in rows
     ]
@@ -176,6 +184,10 @@ def aggregate_by_sender(connection: sqlite3.Connection) -> list[SenderAggregate]
         )
         for row in rows
     ]
+
+
+def known_uids(connection: sqlite3.Connection) -> set[str]:
+    return {row[0] for row in connection.execute("SELECT uid FROM messages")}
 
 
 def get_meta(connection: sqlite3.Connection, key: str) -> str | None:

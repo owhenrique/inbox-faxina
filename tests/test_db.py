@@ -85,6 +85,7 @@ def test_schema_columns(connection: sqlite3.Connection) -> None:
         "has_attachment",
         "labels",
         "fetched_at",
+            "gm_msgid",
     ]
     assert table_columns(connection, "rules") == [
         "id",

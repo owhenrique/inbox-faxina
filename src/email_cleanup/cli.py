@@ -145,6 +145,7 @@ def run_catalog(args: argparse.Namespace) -> int:
                 refresh=args.refresh,
                 limit=args.limit,
                 on_progress=progress.update,
+                account=settings.address,
             )
         except ImapError as error:
             errors.print(f"[red]{error}[/red]")

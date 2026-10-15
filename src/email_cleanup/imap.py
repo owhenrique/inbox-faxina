@@ -39,6 +39,8 @@ class ImapConnection(Protocol):
 
     def uid(self, command: str, *args: str) -> tuple[str, list[bytes | None]]: ...
 
+    def response(self, code: str) -> tuple[str, list[bytes | None]]: ...
+
 
 def default_imap_factory(host: str, port: int) -> imaplib.IMAP4_SSL:
     return imaplib.IMAP4_SSL(host, port)
@@ -52,6 +54,19 @@ def server_detail(data: Sequence[bytes | None]) -> str:
 
 def batches(uids: Sequence[str], size: int) -> list[list[str]]:
     return [list(uids[index : index + size]) for index in range(0, len(uids), size)]
+
+
+def read_uidvalidity(connection: ImapConnection) -> str | None:
+    try:
+        _, data = connection.response("UIDVALIDITY")
+    except (imaplib.IMAP4.error, KeyError, AttributeError):
+        return None
+    for item in reversed(list(data)):
+        if item:
+            value = item.decode("ascii", errors="replace").strip()
+            if value.isdigit():
+                return value
+    return None
 
 
 def fetch_capabilities(connection: ImapConnection) -> set[str]:

@@ -28,7 +28,8 @@ uv run email-cleanup apply --dry-run       # prévia, nada é enviado
 uv run email-cleanup apply                 # executa após digitar APLICAR
 ```
 
-- `catalog --refresh` re-baixa tudo; Ctrl+C encerra com o lote atual salvo.
+- `catalog` baixa apenas os UIDs ainda ausentes do banco, então execuções repetidas com `--limit` continuam de onde pararam sem perder nada. `--refresh` re-baixa tudo; Ctrl+C encerra com o lote atual salvo.
+- O catálogo guarda o `UIDVALIDITY` da INBOX; se mudar, o `catalog` e o `apply` abortam e pedem para apagar `.data/catalog.sqlite` e catalogar de novo.
 - `review` é interativo: ↑↓ navega, espaço marca, enter confirma. Cada decisão vira uma regra; a última regra que casa vence.
 - Ações: **manter** (override), **arquivar** (sai da caixa), **lixeira** (Lixeira do Gmail) e **apagar definitivo** (irreversível).
 - `apply` mostra prévia com contagens e amostra de remetentes e exige digitar `APLICAR`; com apagar definitivo no plano, `APAGAR DEFINITIVO`.

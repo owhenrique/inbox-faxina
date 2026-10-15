@@ -43,8 +43,27 @@ class ImapConnection(Protocol):
     def response(self, code: str) -> tuple[str, list[bytes | None]]: ...
 
 
-def default_imap_factory(host: str, port: int) -> imaplib.IMAP4_SSL:
-    return imaplib.IMAP4_SSL(host, port)
+def quote_mailbox(name: str) -> str:
+    if name.startswith('"') and name.endswith('"'):
+        return name
+    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+class GmailIMAP4_SSL(imaplib.IMAP4_SSL):
+    def select(self, mailbox: str = "INBOX", readonly: bool = False):  # type: ignore[override]
+        return super().select(quote_mailbox(mailbox), readonly)
+
+    def examine(self, mailbox: str = "INBOX"):  # type: ignore[no-untyped-def]
+        return super().select(quote_mailbox(mailbox), True)
+
+    def uid(self, command: str, *args: str):  # type: ignore[no-untyped-def,override]
+        if command.upper() == "MOVE" and len(args) == 2:
+            args = (args[0], quote_mailbox(args[1]))
+        return super().uid(command, *args)
+
+
+def default_imap_factory(host: str, port: int) -> GmailIMAP4_SSL:
+    return GmailIMAP4_SSL(host, port)
 
 
 def server_detail(data: Sequence[bytes | None]) -> str:

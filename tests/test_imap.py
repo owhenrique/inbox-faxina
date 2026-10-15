@@ -333,3 +333,11 @@ def test_command_failure_propagates_as_imap_error() -> None:
 
     assert "STORE rejected" in str(error.value)
     assert PASSWORD not in str(error.value)
+
+
+def test_default_factory_connection_supports_examine_and_quotes_names() -> None:
+    from email_cleanup.imap import GmailIMAP4_SSL, quote_mailbox
+
+    assert hasattr(GmailIMAP4_SSL, "examine")
+    assert quote_mailbox("[Gmail]/Lixeira") == '"[Gmail]/Lixeira"'
+    assert quote_mailbox('"já"') == '"já"'

@@ -225,7 +225,7 @@ em 3 partes dentro do orçamento de 500 cada (em vez de um PR só).
 - [x] 5. `imap.py` + `catalog.py` + comando `catalog` (progresso rich, Ctrl+C gracioso).
 
 **Parte 2 — Análise e revisão**
-- [ ] 6. Testes (falhando) de `classify.py`.
+- [x] 6. Testes (falhando) de `classify.py`.
 - [ ] 7. `classify.py` (fold de acentos, flags, anexo, idade, grupos com corte → "diversos").
 - [ ] 8. Testes (falhando) de `rules.py`.
 - [ ] 9. `rules.py` (persistência + resolução última-regra-vence + conflitos + skip de manifest).

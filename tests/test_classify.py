@@ -597,11 +597,11 @@ def test_is_personal_excludes_promotion_local_parts() -> None:
 
 def test_group_sensitive_reasons_tie_breaks_by_reason_order() -> None:
     messages = [
-        neutral_message("1", sender="maria@gmail.com", subject="Boleto"),
-        neutral_message("2", sender="maria@gmail.com", subject="Contrato"),
+        neutral_message("1", sender="a@empresa.com.br", subject="Contrato"),
+        neutral_message("2", sender="a@empresa.com.br", subject="Boleto"),
     ]
     groups = build_groups(messages, min_count=1)
-    assert groups[0].sensitive_reasons == ("financeiro", "pessoal", "documento")
+    assert groups[0].sensitive_reasons == ("financeiro", "documento")
 
 
 def test_group_sensitive_reasons_sorted_by_count_desc() -> None:

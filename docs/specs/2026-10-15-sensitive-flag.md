@@ -62,17 +62,27 @@ consciência. É só aviso: não bloqueia nem muda o fluxo.
 ### `classify.py` (funções puras, listas fáceis de calibrar)
 
 - `SENSITIVE_REASONS = ("financeiro", "seguranca", "pessoal", "documento")`.
-- `is_financial(message)`: assunto/remetente com termos (fatura, boleto,
-  extrato, cartão, pix, transferência, saldo, imposto, receita federal, nota
-  fiscal, fgts, banco, bank, nubank, itau, bradesco, santander, caixa
-  economica, inter, mercado pago, paypal, invoice, payment…), via `fold()`.
-- `is_security(message)`: código de verificação, verification code, redefin*
-  senha, reset password, login, acesso, 2fa, autenticação, confirme seu,
-  alerta de segurança, security alert.
+- `is_financial(message)`: remetente/assunto, via `fold()`, com termos casados
+  como palavra inteira (fronteira dos dois lados, plural simples aceito):
+  fatura, boleto, extrato, cartão, pix, transferência, "seu saldo"/"saldo
+  disponível", imposto, receita federal, nota fiscal, fgts, banco inter,
+  banco do brasil, bancodobrasil, bancointer, interbank, inter.co, online
+  banking, nubank, itau, bradesco, santander, caixa economica, mercado pago,
+  paypal, invoice, payment, pagamento… Termos genéricos soltos ("bank",
+  "banco", "saldo") não entram, para evitar `pixar.com` ou "saldo de ofertas".
+- `is_security(message)`: assunto com frases específicas: código de
+  verificação, verification code, novo login, login suspeito, new login,
+  sign-in, 2fa, autenticação, alerta de segurança, security alert, confirme
+  seu e-mail/email/cadastro, confirm your email/account, acesso não
+  reconhecido, novo acesso, acesso a sua conta, redefinição de senha,
+  redefinir/redefina (sua) senha, reset password, reset your password,
+  password reset. "Login", "acesso" e "confirme seu" soltos não casam.
 - `is_personal(message)`: `message.domain` em `PERSONAL_DOMAINS` (gmail.com,
   googlemail.com, outlook.com, hotmail.com, live.com, msn.com, yahoo.com,
   yahoo.com.br, icloud.com, me.com, proton.me, protonmail.com, uol.com.br,
-  bol.com.br, terra.com.br) **e** `not is_notification(message)`.
+  bol.com.br, terra.com.br) **e** local-part do remetente sem termos de
+  `NOTIFICATION_LOCAL_PART_TERMS` (no-reply, noreply, notification…) nem de
+  `PROMOTION_LOCAL_PART_TERMS` (news, promo, deals…).
 - `is_document(message)`: `has_attachment` **ou** assunto com contrato,
   recibo, comprovante, passagem, nota fiscal, apólice, declaração, boarding.
 - `sensitivity_reasons(message) -> tuple[str, ...]` na ordem de

@@ -60,21 +60,35 @@ FINANCIAL_TERMS = (
     "boleto",
     "extrato",
     "cartao",
+    "cartoes",
     "pix",
     "transferencia",
-    "saldo",
+    "seu saldo",
+    "saldo disponivel",
+    "saldo em conta",
+    "saldo da conta",
     "imposto",
     "receita federal",
     "nota fiscal",
     "fgts",
-    "banco",
-    "bank",
+    "banco inter",
+    "banco do brasil",
+    "banco itau",
+    "banco bradesco",
+    "banco santander",
+    "bancodobrasil",
+    "bancointer",
+    "interbank",
+    "inter.co",
+    "bank statement",
+    "bank account",
+    "online banking",
     "nubank",
     "itau",
+    "itaucard",
     "bradesco",
     "santander",
     "caixa economica",
-    "bancointer",
     "mercado pago",
     "mercadopago",
     "paypal",
@@ -86,15 +100,30 @@ FINANCIAL_TERMS = (
 SECURITY_TERMS = (
     "codigo de verificacao",
     "verification code",
-    "redefin",
-    "reset your password",
-    "password reset",
-    "login",
+    "novo login",
+    "login suspeito",
+    "new login",
+    "sign-in",
     "2fa",
     "autenticacao",
     "alerta de seguranca",
     "security alert",
-    "confirme seu",
+    "confirme seu e-mail",
+    "confirme seu email",
+    "confirme seu cadastro",
+    "confirme sua conta",
+    "confirm your email",
+    "confirm your account",
+    "acesso nao reconhecido",
+    "novo acesso",
+    "acesso a sua conta",
+    "redefinicao de senha",
+    "redefinir senha",
+    "redefinir sua senha",
+    "redefina sua senha",
+    "reset password",
+    "reset your password",
+    "password reset",
 )
 
 PERSONAL_DOMAINS = frozenset(
@@ -125,8 +154,20 @@ DOCUMENT_SUBJECT_TERMS = (
     "nota fiscal",
     "apolice",
     "declaracao",
+    "declaracoes",
     "boarding",
 )
+
+
+
+def _compile_terms(terms: Sequence[str]) -> re.Pattern[str]:
+    alternatives = "|".join(re.escape(term) for term in terms)
+    return re.compile(rf"(?<!\w)(?:{alternatives})(?:s|es)?(?!\w)")
+
+
+FINANCIAL_PATTERN = _compile_terms(FINANCIAL_TERMS)
+SECURITY_PATTERN = _compile_terms(SECURITY_TERMS)
+DOCUMENT_PATTERN = _compile_terms(DOCUMENT_SUBJECT_TERMS)
 
 
 @dataclass(frozen=True)
@@ -164,23 +205,26 @@ def is_notification(message: Message) -> bool:
 
 
 def is_financial(message: Message) -> bool:
-    return _has_term(fold(f"{message.sender} {message.subject}"), FINANCIAL_TERMS)
+    return FINANCIAL_PATTERN.search(fold(f"{message.sender} {message.subject}")) is not None
 
 
 def is_security(message: Message) -> bool:
-    return _has_term(fold(message.subject), SECURITY_TERMS)
+    return SECURITY_PATTERN.search(fold(message.subject)) is not None
 
 
 def is_personal(message: Message) -> bool:
-    return message.domain.lower() in PERSONAL_DOMAINS and not _matches(
-        _local_part(message.sender), NOTIFICATION_LOCAL_PART_TERMS
+    local_part = _local_part(message.sender)
+    return (
+        message.domain.lower() in PERSONAL_DOMAINS
+        and not _matches(local_part, NOTIFICATION_LOCAL_PART_TERMS)
+        and not _matches(local_part, PROMOTION_LOCAL_PART_TERMS)
     )
 
 
 def is_document(message: Message) -> bool:
-    return message.has_attachment or _has_term(
-        fold(message.subject), DOCUMENT_SUBJECT_TERMS
-    )
+    return message.has_attachment or DOCUMENT_PATTERN.search(
+        fold(message.subject)
+    ) is not None
 
 
 def sensitivity_reasons(message: Message) -> tuple[str, ...]:
@@ -231,6 +275,9 @@ def _build_group(sender: str | None, messages: Sequence[Message], remainder: boo
     latest = max(messages, key=lambda message: message.internal_date)
     name = "diversos" if remainder else latest.sender_name
     reasons_per_message = [sensitivity_reasons(message) for message in messages]
+    reason_counts = Counter(
+        reason for reasons in reasons_per_message for reason in reasons
+    )
     return Group(
         sender=sender,
         name=name,
@@ -242,9 +289,10 @@ def _build_group(sender: str | None, messages: Sequence[Message], remainder: boo
         remainder=remainder,
         sensitive_count=sum(1 for reasons in reasons_per_message if reasons),
         sensitive_reasons=tuple(
-            reason for reason, _ in Counter(
-                reason for reasons in reasons_per_message for reason in reasons
-            ).most_common()
+            sorted(
+                reason_counts,
+                key=lambda reason: (-reason_counts[reason], SENSITIVE_REASONS.index(reason)),
+            )
         ),
     )
 
@@ -255,7 +303,3 @@ def _local_part(sender: str) -> str:
 
 def _matches(text: str, terms: Sequence[str]) -> bool:
     return any(term in text for term in terms)
-
-
-def _has_term(text: str, terms: Sequence[str]) -> bool:
-    return any(re.search(rf"(?<!\w){re.escape(term)}", text) for term in terms)

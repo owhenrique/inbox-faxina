@@ -2,11 +2,11 @@
 id: 2026-10-15-email-cleanup
 card: —
 titulo: Limpeza da caixa de entrada antiga do Gmail com catálogo e revisão interativa
-status: implementada
+status: fechada
 modo: agent-driven
 criada_em: 2026-10-15
 implementada_em: 2026-10-15
-verificada_em:
+verificada_em: 2026-10-15
 branch: feat/email-cleanup
 merge_request:
 ---
@@ -265,11 +265,19 @@ Não se aplica — é um CLI de terminal (TUI rich/questionary).
 
 ## Verificação independente
 
-Preenchido no `/pato/verify`.
+Subagente em contexto limpo (2026-10-15) revisou a branch contra a spec: 129 testes verdes, todos os critérios de aceite atendidos em código/testes, com 10 achados.
+
+- Bloqueante: apagar definitivo não idempotente (podia gravar `ok` sem expurgar).
+- Importantes: `ok` falso para UID inexistente; erro por lote impreciso; `.env` não carregado; metas `account`/`catalog_finished_at` não gravadas; credenciais validadas só após a confirmação.
+- Menores: `apply` sem TTY; sem UIDVALIDITY; `--limit` com `last_uid`; falta teste de regressão.
+
+Todos corrigidos em 4 commits (78fc5cd, 11facfa, b8386e8, 174be82), 152 testes verdes. Limite conhecido: no apagar definitivo uma queda no meio marca o lote (≤200) como `erro`; é reaplicável e idempotente. Linhas catalogadas antes da coluna `gm_msgid` que já saíram da INBOX viram `ausente`. A reverificação das correções foi a suíte de testes, não um segundo subagente.
 
 ## Registro de testes
 
-Preenchido no `/pato/close-spec`.
+- Automatizados: `uv run pytest -q` → 152 passed (fake IMAP em memória, sem rede).
+- Manual / QA no Gmail real: **pendente, a cargo do usuário** — `catalog --limit 200` → `catalog` → `review` → `apply --dry-run` → aplicar um grupo pequeno de arquivar/lixeira e conferir; testar apagar definitivo com 1–2 emails antes de regras grandes.
+- Push / MR: repo sem remote e sem branch `main`; nada enviado.
 
 ## Riscos e pontos em aberto
 

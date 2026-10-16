@@ -1,6 +1,21 @@
-# email-cleanup
+# inbox-faxina 🧹
 
-CLI que cataloga a caixa de entrada antiga do Gmail via IMAP e permite revisar e limpar as mensagens em grupos, com prévia e confirmação.
+> Faxina na caixa de entrada do Gmail: cataloga milhares de emails antigos, agrupa por remetente, avisa o que é perigoso de apagar e só mexe na conta depois de uma prévia e de uma confirmação digitada.
+
+![Revisão por grupo, com ⚠ nos remetentes sensíveis](docs/screenshots/review.png)
+
+<details>
+<summary>Mais telas</summary>
+
+![Aviso ao mandar mensagens sensíveis para a Lixeira](docs/screenshots/aviso.png)
+
+![Prévia do apply --dry-run](docs/screenshots/apply-dry-run.png)
+
+</details>
+
+As telas acima usam dados **fictícios** (remetentes `.example`), gerados pelas próprias funções de renderização do app.
+
+CLI (`email-cleanup`) que cataloga a caixa de entrada antiga do Gmail via IMAP e permite revisar e limpar as mensagens em grupos, com prévia e confirmação.
 
 ## Pré-requisitos
 

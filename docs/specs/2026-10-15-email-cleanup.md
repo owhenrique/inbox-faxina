@@ -2,11 +2,11 @@
 id: 2026-10-15-email-cleanup
 card: —
 titulo: Limpeza da caixa de entrada antiga do Gmail com catálogo e revisão interativa
-status: em-andamento
-modo:
+status: fechada
+modo: agent-driven
 criada_em: 2026-10-15
-implementada_em:
-verificada_em:
+implementada_em: 2026-10-15
+verificada_em: 2026-10-15
 branch: feat/email-cleanup
 merge_request:
 ---
@@ -62,6 +62,8 @@ limpeza e aplica somente após prévia e confirmação explícita.
 - P: Atalhos em massa na revisão? → R: sim, além do refino grupo a grupo.
 - P: Ambiente? → R: uv + pyproject.toml.
 - P: Visual? → R: UI caprichada no terminal, no espírito das interações do opencode (setas, checkbox de grupos, descrições por opção).
+- P: Teto de 500 linhas estourou na Parte 1 (948)? → R: adaptado neste repo pessoal — vale como meta por commit, não por branch; registro na spec.
+- P: Usar graphify nas Partes 2–3? → R: sim; gerar o grafo do repo (`graphify extract . --code-only`) e usar `check-update`/`explain` nos subagentes.
 
 ## Premissas
 
@@ -104,8 +106,9 @@ usuário em PT-BR, type hints, sem comentários, regras como funções puras.
   - arquivar = `UID STORE -X-GM-LABELS (\Inbox)`
   - lixeira = `UID MOVE` para a pasta descoberta em `LIST` pelo flag `\Trash`
     (nome localizado, ex.: `[Gmail]/Lixeira` — nunca chutar o nome)
-  - apagar definitivo = `UID MOVE` para a Lixeira, depois `UID STORE +FLAGS
-    (\Deleted)` + `UID EXPUNGE` lá dentro (irreversível)
+  - apagar definitivo = `UID MOVE` para a Lixeira, localizar de novo lá via
+    `UID SEARCH X-GM-MSGID` (o UID muda de caixa para caixa no IMAP) e então
+    `UID STORE +FLAGS (\Deleted)` + `UID EXPUNGE` lá dentro (irreversível)
 - `apply` pula UIDs já com status ok no manifest para a mesma ação (idempotente
   após interrupção); falha de lote registra o lote e para.
 
@@ -215,23 +218,23 @@ em 3 partes dentro do orçamento de 500 cada (em vez de um PR só).
 ## Tarefas
 
 **Parte 1 — Fundação e catálogo**
-- [ ] 1. Setup do repo: uv/pyproject, deps, `.gitignore`, `.env.example`, README esqueleto; commit inicial com esta spec.
-- [ ] 2. Testes (falhando) de `config.py`/`db.py` + `tests/fake_imap.py` (dublê de IMAP4_SSL).
-- [ ] 3. `config.py` + `db.py` (schema, WAL, helpers).
-- [ ] 4. Testes (falhando) de `imap.py` (capabilities, descoberta da Lixeira) e `catalog.py` (lotes, retomada, `--limit`, labels ausentes, subject codificado).
-- [ ] 5. `imap.py` + `catalog.py` + comando `catalog` (progresso rich, Ctrl+C gracioso).
+- [x] 1. Setup do repo: uv/pyproject, deps, `.gitignore`, `.env.example`, README esqueleto; commit inicial com esta spec.
+- [x] 2. Testes (falhando) de `config.py`/`db.py` + `tests/fake_imap.py` (dublê de IMAP4_SSL).
+- [x] 3. `config.py` + `db.py` (schema, WAL, helpers).
+- [x] 4. Testes (falhando) de `imap.py` (capabilities, descoberta da Lixeira) e `catalog.py` (lotes, retomada, `--limit`, labels ausentes, subject codificado).
+- [x] 5. `imap.py` + `catalog.py` + comando `catalog` (progresso rich, Ctrl+C gracioso).
 
 **Parte 2 — Análise e revisão**
-- [ ] 6. Testes (falhando) de `classify.py`.
-- [ ] 7. `classify.py` (fold de acentos, flags, anexo, idade, grupos com corte → "diversos").
-- [ ] 8. Testes (falhando) de `rules.py`.
-- [ ] 9. `rules.py` (persistência + resolução última-regra-vence + conflitos + skip de manifest).
-- [ ] 10. `review.py` (UI: painel-resumo, tabela paginada colorida, menu, checkbox de grupos com descrições, atalhos em massa, ver/remover regras, prévia do plano) + comando `review`.
+- [x] 6. Testes (falhando) de `classify.py`.
+- [x] 7. `classify.py` (fold de acentos, flags, anexo, idade, grupos com corte → "diversos").
+- [x] 8. Testes (falhando) de `rules.py`.
+- [x] 9. `rules.py` (persistência + resolução última-regra-vence + conflitos + skip de manifest).
+- [x] 10. `review.py` (UI: painel-resumo, tabela paginada colorida, menu, checkbox de grupos com descrições, atalhos em massa, ver/remover regras, prévia do plano) + comando `review`.
 
 **Parte 3 — Aplicação**
-- [ ] 11. Testes (falhando) de `apply.py`.
-- [ ] 12. `apply.py` + comando `apply` (painel de prévia, `--dry-run`, confirmações digitadas, lotes com barra de progresso, manifest).
-- [ ] 13. README final: pré-requisitos (2FA + senha de app + IMAP habilitado), fluxo de uso, solução de problemas.
+- [x] 11. Testes (falhando) de `apply.py`.
+- [x] 12. `apply.py` + comando `apply` (painel de prévia, `--dry-run`, confirmações digitadas, lotes com barra de progresso, manifest).
+- [x] 13. README final: pré-requisitos (2FA + senha de app + IMAP habilitado), fluxo de uso, solução de problemas.
 
 ## Critérios de aceite
 
@@ -262,11 +265,19 @@ Não se aplica — é um CLI de terminal (TUI rich/questionary).
 
 ## Verificação independente
 
-Preenchido no `/pato/verify`.
+Subagente em contexto limpo (2026-10-15) revisou a branch contra a spec: 129 testes verdes, todos os critérios de aceite atendidos em código/testes, com 10 achados.
+
+- Bloqueante: apagar definitivo não idempotente (podia gravar `ok` sem expurgar).
+- Importantes: `ok` falso para UID inexistente; erro por lote impreciso; `.env` não carregado; metas `account`/`catalog_finished_at` não gravadas; credenciais validadas só após a confirmação.
+- Menores: `apply` sem TTY; sem UIDVALIDITY; `--limit` com `last_uid`; falta teste de regressão.
+
+Todos corrigidos em 4 commits (78fc5cd, 11facfa, b8386e8, 174be82), 152 testes verdes. Limite conhecido: no apagar definitivo uma queda no meio marca o lote (≤200) como `erro`; é reaplicável e idempotente. Linhas catalogadas antes da coluna `gm_msgid` que já saíram da INBOX viram `ausente`. A reverificação das correções foi a suíte de testes, não um segundo subagente.
 
 ## Registro de testes
 
-Preenchido no `/pato/close-spec`.
+- Automatizados: `uv run pytest -q` → 152 passed (fake IMAP em memória, sem rede).
+- Manual / QA no Gmail real: **pendente, a cargo do usuário** — `catalog --limit 200` → `catalog` → `review` → `apply --dry-run` → aplicar um grupo pequeno de arquivar/lixeira e conferir; testar apagar definitivo com 1–2 emails antes de regras grandes.
+- Push / MR: repo sem remote e sem branch `main`; nada enviado.
 
 ## Riscos e pontos em aberto
 
@@ -277,5 +288,6 @@ Preenchido no `/pato/close-spec`.
 - Se `X-GM-LABELS` não vier como esperado, catálogo segue com heurísticas.
 - Repo novo sem remote: push/MR do `/pato/close-spec` só quando houver remote.
 - Sensibilidade a throttling do Gmail em rajadas: lotes + retomada cobrem.
+- Teto de 500 linhas adaptado por decisão do usuário: neste repo pessoal vale como meta por commit, não por branch (a Parte 1 fechou ≈950).
 - Se a Parte 2 estourar os 500, entregar em dois commits lógicos (regras por
   grupo → atalhos em massa + polimento da UI).
